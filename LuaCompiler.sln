@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuaCompiler", "LuaCompiler\LuaCompiler.csproj", "{26D3B614-D397-4CF2-8300-9CF13FE74497}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{26D3B614-D397-4CF2-8300-9CF13FE74497}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{26D3B614-D397-4CF2-8300-9CF13FE74497}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{26D3B614-D397-4CF2-8300-9CF13FE74497}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{26D3B614-D397-4CF2-8300-9CF13FE74497}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
