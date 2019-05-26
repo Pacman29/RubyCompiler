@@ -10,7 +10,7 @@ namespace LuaCompiler
         static void Main(string[] args)
         {
             var compiler = new Compiler();
-            string source = File.ReadAllText( Path.Combine(Environment.CurrentDirectory,  @"samples/factorial.lua"), Encoding.UTF8);
+            string source = File.ReadAllText( Path.Combine(Environment.CurrentDirectory,  @"samples/print.lua"), Encoding.UTF8);
             compiler.Compile("aaa", source);
         }
     }
