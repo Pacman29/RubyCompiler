@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
 
@@ -40,6 +41,15 @@ namespace LuaCompiler.luaAntlrCompiler
                 var tokenStream = new CommonTokenStream(lexer);
                 parser = new LuaParser(tokenStream);
                 Tree = parser.chunk();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+
+            try
+            {
+                new LuaCompilerVisitor(Path.Combine(Environment.CurrentDirectory,  @"test_bytecode/print.bc")).Visit(Tree);
             }
             catch (Exception e)
             {

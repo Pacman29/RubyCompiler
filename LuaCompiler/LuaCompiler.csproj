@@ -9,5 +9,7 @@
       <PackageReference Include="Antlr4" Version="4.6.6" />
       <PackageReference Include="Antlr4.CodeGenerator" Version="4.6.6" />
       <PackageReference Include="Antlr4.Runtime" Version="4.6.6" />
+      <PackageReference Include="LibLLVM" Version="7.0.1" />
+      <PackageReference Include="LLVMSharp" Version="5.0.0" />
     </ItemGroup>
 </Project>
