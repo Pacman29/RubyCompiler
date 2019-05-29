@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using LLVMSharp;
 
-namespace LuaCompiler.luaAntlrCompiler
+namespace RubyCompiler.rubyAntlrCompiler
 {
     public class Context
     {

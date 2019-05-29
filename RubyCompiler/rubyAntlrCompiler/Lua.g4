@@ -18,12 +18,20 @@ stat
     | 'do' block 'end'
     | 'while' exp 'do' block 'end'
     | 'repeat' block 'until' exp
-    | 'if' exp 'then' block ('elseif' exp 'then' block)* ('else' block)? 'end'
+    | conclusionDeclaration
     | 'for' NAME '=' exp ',' exp (',' exp)? 'do' block 'end'
     | 'for' namelist 'in' explist 'do' block 'end'
-    | 'function' funcname funcbody
+    | functionDeclaration
     | 'local' 'function' NAME funcbody
     | 'local' namelist ('=' explist)?
+    ;
+    
+conclusionDeclaration
+    : 'if' exp 'then' block ('elseif' exp 'then' block)* ('else' block)? 'end'
+    ;
+    
+functionDeclaration
+    :  'function' funcname funcbody
     ;
 
 retstat

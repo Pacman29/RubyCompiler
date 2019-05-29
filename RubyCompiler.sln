@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LuaCompiler", "LuaCompiler\LuaCompiler.csproj", "{26D3B614-D397-4CF2-8300-9CF13FE74497}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RubyCompiler", "RubyCompiler\RubyCompiler.csproj", "{26D3B614-D397-4CF2-8300-9CF13FE74497}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

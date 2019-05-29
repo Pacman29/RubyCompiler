@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>netcoreapp2.2</TargetFramework>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Antlr4" Version="4.6.6" />
+      <PackageReference Include="Antlr4.CodeGenerator" Version="4.6.6" />
+      <PackageReference Include="Antlr4.Runtime" Version="4.6.6" />
+      <PackageReference Include="LibLLVM" Version="7.0.1" />
+      <PackageReference Include="LLVMSharp" Version="5.0.0" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ClCompile Include="test_bytecode\main.cpp" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\Ruby.interp" />
+      <Content Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\Ruby.tokens" />
+      <Content Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyLexer.interp" />
+      <Content Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyLexer.tokens" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyBaseListener.cs" />
+      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyBaseVisitor.cs" />
+      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyLexer.cs" />
+      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyListener.cs" />
+      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyParser.cs" />
+      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyVisitor.cs" />
+    </ItemGroup>
+</Project>

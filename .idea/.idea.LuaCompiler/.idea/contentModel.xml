@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ContentModelStore">
+    <e p="$USER_HOME$/.Rider2019.1/system/extResources" t="IncludeRecursive" />
+    <e p="$USER_HOME$/.Rider2019.1/system/resharper-host/local/Transient/ReSharperHost/v191/SolutionCaches/_LuaCompiler.-1013465537.00" t="ExcludeRecursive" />
+    <e p="$USER_HOME$/.nuget/packages/libllvm/7.0.1/runtimes/win-x86/native/libLLVM.dll" t="Include" />
+    <e p="$PROJECT_DIR$" t="IncludeFlat">
+      <e p=".git/info/exclude" t="IncludeRecursive" />
+      <e p="LuaCompiler.sln" t="IncludeFlat" />
+      <e p="RubyCompiler" t="IncludeRecursive">
+        <e p=".gitignore" t="Include" />
+        <e p="Program.cs" t="Include" />
+        <e p="RubyCompiler.csproj" t="IncludeRecursive" />
+        <e p="bin" t="ExcludeRecursive" />
+        <e p="obj" t="ExcludeRecursive">
+          <e p="Debug" t="Include">
+            <e p="netcoreapp2.2" t="Include">
+              <e p="LuaBaseListener.cs" t="Include" />
+              <e p="LuaBaseVisitor.cs" t="Include" />
+              <e p="LuaLexer.cs" t="Include" />
+              <e p="LuaListener.cs" t="Include" />
+              <e p="LuaParser.cs" t="Include" />
+              <e p="LuaVisitor.cs" t="Include" />
+              <e p="RubyBaseListener.cs" t="Include" />
+              <e p="RubyBaseVisitor.cs" t="Include" />
+              <e p="RubyCompiler.AssemblyInfo.cs" t="Include" />
+              <e p="RubyLexer.cs" t="Include" />
+              <e p="RubyListener.cs" t="Include" />
+              <e p="RubyParser.cs" t="Include" />
+              <e p="RubyVisitor.cs" t="Include" />
+              <e p="rubyAntlrCompiler" t="Include">
+                <e p="Ruby.interp" t="Include" />
+                <e p="Ruby.tokens" t="Include" />
+                <e p="RubyBaseListener.cs" t="Include" />
+                <e p="RubyBaseVisitor.cs" t="Include" />
+                <e p="RubyLexer.cs" t="Include" />
+                <e p="RubyLexer.interp" t="Include" />
+                <e p="RubyLexer.tokens" t="Include" />
+                <e p="RubyListener.cs" t="Include" />
+                <e p="RubyParser.cs" t="Include" />
+                <e p="RubyVisitor.cs" t="Include" />
+              </e>
+            </e>
+          </e>
+        </e>
+        <e p="rubyAntlrCompiler" t="Include">
+          <e p="Compiler.cs" t="Include" />
+          <e p="CompilerResults.cs" t="Include" />
+          <e p="Context.cs" t="Include" />
+          <e p="LocalVariable.cs" t="Include" />
+          <e p="Parameter.cs" t="Include" />
+          <e p="Ruby.g4" t="Include" />
+          <e p="RubyCompilerVisitor.cs" t="Include" />
+        </e>
+        <e p="samples" t="Include">
+          <e p="factorial.lua" t="Include" />
+          <e p="main.lua" t="Include" />
+          <e p="num.lua" t="Include" />
+          <e p="print.lua" t="Include" />
+        </e>
+        <e p="test_bytecode" t="Include">
+          <e p="Dockerfile" t="Include" />
+          <e p="README.md" t="Include" />
+          <e p="a.out" t="Include" />
+          <e p="build_docker_image.cmd" t="Include" />
+          <e p="build_docker_image.sh" t="Include" />
+          <e p="compiled.bc" t="Include" />
+          <e p="compiled.o" t="Include" />
+          <e p="main.cpp" t="Include" />
+          <e p="print.bc" t="Include" />
+          <e p="print.o" t="Include" />
+          <e p="run_container.cmd" t="Include" />
+          <e p="run_container.sh" t="Include" />
+          <e p="test.txt" t="Include" />
+        </e>
+      </e>
+      <e p="packages" t="ExcludeRecursive" />
+    </e>
+  </component>
+</project>

@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
+using rubyAntlrCompiler;
 
-namespace LuaCompiler.luaAntlrCompiler
+namespace RubyCompiler.rubyAntlrCompiler
 {
     public class Compiler
     {
@@ -14,15 +15,15 @@ namespace LuaCompiler.luaAntlrCompiler
         {
             Tokens = new List<IToken>();
             
-            LuaLexer lexer = null;
-            LuaParser parser = null;
+            RubyLexer lexer = null;
+            RubyParser parser = null;
 
             try
             {
                 var stream = new AntlrInputStream(source);
-                lexer = new LuaLexer(stream);
+                lexer = new RubyLexer(stream);
                 var token = lexer.NextToken();
-                while (token.Type != LuaLexer.Eof)
+                while (token.Type != RubyLexer.Eof)
                 {
                     Tokens.Add(token);
                     token = lexer.NextToken();
@@ -39,8 +40,8 @@ namespace LuaCompiler.luaAntlrCompiler
             try
             {
                 var tokenStream = new CommonTokenStream(lexer);
-                parser = new LuaParser(tokenStream);
-                Tree = parser.chunk();
+                parser = new RubyParser(tokenStream);
+                Tree = parser.prog();
             }
             catch (Exception e)
             {
@@ -49,7 +50,7 @@ namespace LuaCompiler.luaAntlrCompiler
 
             try
             {
-                new LuaCompilerVisitor(Path.Combine(Environment.CurrentDirectory,  @"test_bytecode/print.bc")).Visit(Tree);
+                new RubyCompilerVisitor(Path.Combine(Environment.CurrentDirectory,  @"test_bytecode/num.bc")).Visit(Tree);
             }
             catch (Exception e)
             {

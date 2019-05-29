@@ -1,6 +1,6 @@
 using LLVMSharp;
 
-namespace LuaCompiler.luaAntlrCompiler
+namespace RubyCompiler.rubyAntlrCompiler
 {
     public partial class CompilerResult
     {
