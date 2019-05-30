@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
 
@@ -50,8 +51,13 @@ namespace RubyCompiler.rubyAntlrCompiler
         
         public RubyCompilerListener()
         {
-            this.PrintStreamError = new StreamWriter(ErrorStream) {AutoFlush = true};
+            PrintStreamError = new StreamWriter(ErrorStream) {AutoFlush = true};
+            CultureInfo = (CultureInfo) CultureInfo.CurrentCulture.Clone();
+            CultureInfo.NumberFormat.CurrencyDecimalSeparator = ".";
+            CultureInfo.NumberFormat.NumberDecimalSeparator = ".";
         }
+
+        public CultureInfo CultureInfo { get; set; }
 
         public void CreateIRFile(string path)
         {
@@ -82,7 +88,7 @@ namespace RubyCompiler.rubyAntlrCompiler
             var ps = new StreamWriter(outStream) {AutoFlush = true};
             
             ps.WriteLine("\n.end");
-            ps.WriteLine("\n.include stdlib.pir");
+            ps.WriteLine("\n.include \"stdlib/stdlib.pir\"");
 
             foreach (var functionCall in FunctionCalls)
             {
@@ -140,7 +146,7 @@ namespace RubyCompiler.rubyAntlrCompiler
                     break;
                 case "Float":
                     var resultFloat = FloatValues.Get(context.GetChild(2));
-                    printStream.WriteLine("set_global \"" + global + "\", " + resultFloat);
+                    printStream.WriteLine("set_global \"" + global + "\", " + resultFloat.ToString(CultureInfo));
                     break;
                 case "String":
                     var resultString = StringValues.Get(context.GetChild(2));
@@ -187,6 +193,8 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackDefinitions.Push(funcDefinitions);
             var funcParams = new MemoryStream();
             StackOutputStreams.Push(funcParams);
+            var outStream = new MemoryStream();
+            StackOutputStreams.Push(outStream);
         }
 
         public override void ExitFunction_definition(RubyParser.Function_definitionContext context)
@@ -208,7 +216,6 @@ namespace RubyCompiler.rubyAntlrCompiler
             FunctionDefinitionStreams[funcName] = outStream;
 
             StackDefinitions.Pop();
-            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterFunction_definition_body(RubyParser.Function_definition_bodyContext context)
@@ -249,7 +256,7 @@ namespace RubyCompiler.rubyAntlrCompiler
                     break;
                 case "Float":
                     var resultFloat = FloatValues.Get(context.GetChild(1));
-                    ps.WriteLine(".return(" + resultFloat + ")");
+                    ps.WriteLine(".return(" + resultFloat.ToString(CultureInfo) + ")");
                     break;
                 case "String":
                     var resultString = StringValues.Get(context.GetChild(1));
@@ -284,7 +291,7 @@ namespace RubyCompiler.rubyAntlrCompiler
             argsStream.Seek(0, SeekOrigin.Begin);
             var args = new StreamReader(argsStream).ReadToEnd();
             var funcName = context.name.GetText();
-            args = args.Replace(",$", "");
+            args = Regex.Replace(args, ",$", ""); 
             // ASSIGNMENT of dynamic function params
             assignmentStream.Seek(0, SeekOrigin.Begin);
             ps.WriteLine(new StreamReader(assignmentStream).ReadToEnd());
@@ -310,7 +317,7 @@ namespace RubyCompiler.rubyAntlrCompiler
                     break;
                 case "Float":
                     var resultFloat = FloatValues.Get(context.GetChild(0));
-                    ps.Write(resultFloat + ",");
+                    ps.Write(resultFloat.ToString(CultureInfo) + ",");
                     break;
                 case "String":
                     var resultString = StringValues.Get(context.GetChild(0));
@@ -342,7 +349,7 @@ namespace RubyCompiler.rubyAntlrCompiler
                     break;
                 case "Float":
                     var resultFloat = FloatValues.Get(context.GetChild(2));
-                    ps.Write(resultFloat + " :named(\"" + idParam + "\"),");
+                    ps.Write(resultFloat.ToString(CultureInfo) + " :named(\"" + idParam + "\"),");
                     break;
                 case "String":
                     var resultString = StringValues.Get(context.GetChild(2));
@@ -916,7 +923,7 @@ namespace RubyCompiler.rubyAntlrCompiler
                     break;
                 case "Float":
                     var resultFloat = FloatValues.Get(context.GetChild(2));
-                    ps.WriteLine(arrDef + " = " + resultFloat);
+                    ps.WriteLine(arrDef + " = " + resultFloat.ToString(CultureInfo));
                     break;
                 case "String":
                     var resultString = StringValues.Get(context.GetChild(2));
@@ -1296,7 +1303,7 @@ namespace RubyCompiler.rubyAntlrCompiler
                     break;
                 case "Float":
                     var resultFloat = FloatValues.Get(context.GetChild(0));
-                    strOutput = "$P" + NumReg + " = " + resultFloat;
+                    strOutput = "$P" + NumReg + " = " + resultFloat.ToString(CultureInfo);
                     break;
                 case "String":
                     var resultString = StringValues.Get(context.GetChild(0));
@@ -1362,9 +1369,6 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void VisitTerminal(ITerminalNode node)
         {
-            var ci = (CultureInfo) CultureInfo.CurrentCulture.Clone();
-            ci.NumberFormat.CurrencyDecimalSeparator = ".";
-            
             var symbol = node.Symbol;
             switch(symbol.Type) 
             {
@@ -1373,15 +1377,15 @@ namespace RubyCompiler.rubyAntlrCompiler
                     WhichValues.Put(node, "Integer");
                     break;
                 case RubyParser.FLOAT:
-                    FloatValues.Put(node, float.Parse(symbol.Text, NumberStyles.Any, ci));
+                    FloatValues.Put(node, float.Parse(symbol.Text, NumberStyles.Any, CultureInfo));
                     WhichValues.Put(node, "Float");
                     break;
                 case RubyParser.LITERAL:
                     var strTerminal = symbol.Text;
-                    strTerminal = strTerminal.Replace("\"$", "");
-                    strTerminal = strTerminal.Replace("^\"", "");
-                    strTerminal = strTerminal.Replace("\'$", "");
-                    strTerminal = strTerminal.Replace("^\'", "");
+                    strTerminal = Regex.Replace(strTerminal, "\"$", "");
+                    strTerminal = Regex.Replace(strTerminal, "^\"", "");
+                    strTerminal = Regex.Replace(strTerminal, "\'$", "");
+                    strTerminal = Regex.Replace(strTerminal, "^\'", "");
                     StringValues.Put(node, strTerminal);
                     WhichValues.Put(node, "String");
                     break;
