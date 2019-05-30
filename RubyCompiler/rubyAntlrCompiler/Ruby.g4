@@ -27,11 +27,6 @@
  *  THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/*
- *  A grammar for Ruby-like language written in ANTLR v4.
- *  You can find compiler into Parrot VM intermediate representation language
- *  (PIR) here: https://github.com/AlexBelov/corundum
- */
 
 grammar Ruby;
 

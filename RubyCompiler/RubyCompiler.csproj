@@ -18,18 +18,12 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\Ruby.interp" />
-      <Content Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\Ruby.tokens" />
-      <Content Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyLexer.interp" />
-      <Content Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyLexer.tokens" />
+      <Antlr4 Update="rubyAntlrCompiler\Ruby.g4">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Antlr4>
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyBaseListener.cs" />
-      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyBaseVisitor.cs" />
-      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyLexer.cs" />
-      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyListener.cs" />
-      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyParser.cs" />
-      <Compile Include="obj\Debug\netcoreapp2.2\rubyAntlrCompiler\RubyVisitor.cs" />
+      <Folder Include="obj\Debug\netcoreapp2.2\" />
     </ItemGroup>
 </Project>

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
-using rubyAntlrCompiler;
 
 namespace RubyCompiler.rubyAntlrCompiler
 {
@@ -50,7 +49,12 @@ namespace RubyCompiler.rubyAntlrCompiler
 
             try
             {
-                new RubyCompilerListener(Path.Combine(Environment.CurrentDirectory,  @"test_bytecode/num.rb")).Visit(Tree);
+                var walker = new ParseTreeWalker();
+                var listener = new RubyCompilerListener();
+                walker.Walk(listener, Tree);
+                
+                listener.CreateIRFile(Path.Combine(Environment.CurrentDirectory,  @"test_bytecode/num.pir"));
+                
             }
             catch (Exception e)
             {

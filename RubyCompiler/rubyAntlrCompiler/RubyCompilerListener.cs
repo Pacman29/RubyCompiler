@@ -1,11 +1,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
-using rubyAntlrCompiler;
 
 namespace RubyCompiler.rubyAntlrCompiler
 {
@@ -31,35 +31,46 @@ namespace RubyCompiler.rubyAntlrCompiler
         private int NumLabel = 0;
         Stack<int> StackLoopLabels = new Stack<int>();
         LinkedList<string> MainDefenitions = new LinkedList<string>();
-        ArrayList<string> FunctionCalls = new ArrayList<string>();
+        ArrayList FunctionCalls = new ArrayList();
         Stack<LinkedList<string>> StackDefinitions = new Stack<LinkedList<string>>();
 
-        public bool IsDefined(LinkedList<string> definitions, string variable)
+        private bool IsDefined(LinkedList<string> definitions, string variable)
         {
             return definitions.Any(def => def.Equals(variable));
         }
 
-        public string repeat(string s, int times)
+        private string Repeat(string s, int times)
         {
             if (times <= 0)
                 return "";
             else
-                return s + repeat(s, times - 1);
+                return s + Repeat(s, times - 1);
         }
         
         
-        public RubyCompilerListener(string bytecodePath)
+        public RubyCompilerListener()
         {
-            this.BytecodePath = bytecodePath;
-            this.PrintStreamError = new StreamWriter(ErrorStream);
+            this.PrintStreamError = new StreamWriter(ErrorStream) {AutoFlush = true};
         }
 
-        public string BytecodePath { get; set; }
+        public void CreateIRFile(string path)
+        {
+            ErrorStream.Seek(0, SeekOrigin.Begin);
+            var errorReader = new StreamReader(ErrorStream);
+            Console.WriteLine(errorReader.ReadToEnd());
+            
+            var outStream = new StreamWriter(path) {AutoFlush = true};
+            var codeStream = StackOutputStreams.Pop();
+            codeStream.Seek(0, SeekOrigin.Begin);
+            var irCode = new StreamReader(codeStream).ReadToEnd();
+            Console.WriteLine(irCode);
+            outStream.Write(irCode);
+        }
 
         public override void EnterProg(RubyParser.ProgContext context)
         {
-            MemoryStream outStream = MainStream; 
-            var ps = new StreamWriter(outStream);
+            MemoryStream outStream = MainStream;
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             ps.WriteLine(".sub main");
             StackDefinitions.Push(MainDefenitions);
             StackOutputStreams.Push(outStream);
@@ -67,8 +78,8 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitProg(RubyParser.ProgContext context)
         {
-            var outStream = MainStream;
-            var ps = new StreamWriter(outStream);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             
             ps.WriteLine("\n.end");
             ps.WriteLine("\n.include stdlib.pir");
@@ -76,43 +87,23 @@ namespace RubyCompiler.rubyAntlrCompiler
             foreach (var functionCall in FunctionCalls)
             {
                 MemoryStream funcStream = FunctionDefinitionStreams[functionCall] as MemoryStream;
-                funcStream?.CopyTo(outStream);
+                if (funcStream != null)
+                {
+                    funcStream.Seek(0, SeekOrigin.Begin);
+                    ps.WriteLine(new StreamReader(funcStream).ReadToEnd());
+                }
+                    
             }
 
             StackDefinitions.Pop();
             StackOutputStreams.Push(outStream);
         }
 
-        public override void EnterExpression_list(RubyParser.Expression_listContext context)
-        {
-            base.EnterExpression_list(context);
-        }
-
-        public override void ExitExpression_list(RubyParser.Expression_listContext context)
-        {
-            base.ExitExpression_list(context);
-        }
-
-        public override void EnterExpression(RubyParser.ExpressionContext context)
-        {
-            base.EnterExpression(context);
-        }
-
-        public override void ExitExpression(RubyParser.ExpressionContext context)
-        {
-            base.ExitExpression(context);
-        }
-
-        public override void EnterGlobal_get(RubyParser.Global_getContext context)
-        {
-            base.EnterGlobal_get(context);
-        }
-
         public override void ExitGlobal_get(RubyParser.Global_getContext context)
         {
             var outStream = StackOutputStreams.Pop();
             var defenitions = StackDefinitions.Pop();
-            var printStream = new StreamWriter(outStream);
+            var printStream = new StreamWriter(outStream) {AutoFlush = true};
 
             var variable = context.var_name.GetText();
             var global = context.global_name.GetText();
@@ -131,16 +122,11 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackDefinitions.Push(defenitions);
         }
 
-        public override void EnterGlobal_set(RubyParser.Global_setContext context)
-        {
-            base.EnterGlobal_set(context);
-        }
-
         public override void ExitGlobal_set(RubyParser.Global_setContext context)
         {
             var outStream = StackOutputStreams.Pop();
             var definitions = StackDefinitions.Pop();
-            var printStream = new StreamWriter(outStream);
+            var printStream = new StreamWriter(outStream) {AutoFlush = true};
 
             var global = context.global_name.GetText();
 
@@ -170,47 +156,12 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackDefinitions.Push(definitions);
         }
 
-        public override void EnterGlobal_result(RubyParser.Global_resultContext context)
-        {
-            base.EnterGlobal_result(context);
-        }
-
-        public override void ExitGlobal_result(RubyParser.Global_resultContext context)
-        {
-            base.ExitGlobal_result(context);
-        }
-
-        public override void EnterFunction_inline_call(RubyParser.Function_inline_callContext context)
-        {
-            base.EnterFunction_inline_call(context);
-        }
-
         public override void ExitFunction_inline_call(RubyParser.Function_inline_callContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             ps.WriteLine(StringValues.Get(context.GetChild(0)));
             StackOutputStreams.Push(outStream);
-        }
-
-        public override void EnterRequire_block(RubyParser.Require_blockContext context)
-        {
-            base.EnterRequire_block(context);
-        }
-
-        public override void ExitRequire_block(RubyParser.Require_blockContext context)
-        {
-            base.ExitRequire_block(context);
-        }
-
-        public override void EnterPir_inline(RubyParser.Pir_inlineContext context)
-        {
-            base.EnterPir_inline(context);
-        }
-
-        public override void ExitPir_inline(RubyParser.Pir_inlineContext context)
-        {
-            base.ExitPir_inline(context);
         }
 
         public override void EnterPir_expression_list(RubyParser.Pir_expression_listContext context)
@@ -223,7 +174,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         {
             var emptyStream = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             ps.WriteLine(context.GetText());
 
@@ -236,8 +187,6 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackDefinitions.Push(funcDefinitions);
             var funcParams = new MemoryStream();
             StackOutputStreams.Push(funcParams);
-            var outStream = new MemoryStream();
-            StackOutputStreams.Push(outStream);
         }
 
         public override void ExitFunction_definition(RubyParser.Function_definitionContext context)
@@ -245,18 +194,21 @@ namespace RubyCompiler.rubyAntlrCompiler
             var funcBody = StackOutputStreams.Pop();
             var funcParams = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var funcName = StringValues.Get(context.GetChild(0));
             ps.WriteLine("\n.sub " + funcName);
             ps.WriteLine("");
-            funcParams.CopyTo(outStream);
-            funcBody.CopyTo(outStream);
+            funcParams.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(funcParams).ReadToEnd());
+            funcBody.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(funcBody).ReadToEnd());
             ps.Write(".end");
 
             FunctionDefinitionStreams[funcName] = outStream;
 
             StackDefinitions.Pop();
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterFunction_definition_body(RubyParser.Function_definition_bodyContext context)
@@ -265,76 +217,27 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(funcBody);
         }
 
-        public override void ExitFunction_definition_body(RubyParser.Function_definition_bodyContext context)
-        {
-            base.ExitFunction_definition_body(context);
-        }
-
-        public override void EnterFunction_definition_header(RubyParser.Function_definition_headerContext context)
-        {
-            base.EnterFunction_definition_header(context);
-        }
-
         public override void ExitFunction_definition_header(RubyParser.Function_definition_headerContext context)
         {
             StringValues.Put(context, context.GetChild(1).GetText());
         }
 
-        public override void EnterFunction_name(RubyParser.Function_nameContext context)
-        {
-            base.EnterFunction_name(context);
-        }
-
-        public override void ExitFunction_name(RubyParser.Function_nameContext context)
-        {
-            base.ExitFunction_name(context);
-        }
-
-        public override void EnterFunction_definition_params(RubyParser.Function_definition_paramsContext context)
-        {
-            base.EnterFunction_definition_params(context);
-        }
-
-        public override void ExitFunction_definition_params(RubyParser.Function_definition_paramsContext context)
-        {
-            base.ExitFunction_definition_params(context);
-        }
-
-        public override void EnterFunction_definition_params_list(RubyParser.Function_definition_params_listContext context)
-        {
-            base.EnterFunction_definition_params_list(context);
-        }
-
-        public override void ExitFunction_definition_params_list(RubyParser.Function_definition_params_listContext context)
-        {
-            base.ExitFunction_definition_params_list(context);
-        }
-
-        public override void EnterFunction_definition_param_id(RubyParser.Function_definition_param_idContext context)
-        {
-            base.EnterFunction_definition_param_id(context);
-        }
-
         public override void ExitFunction_definition_param_id(RubyParser.Function_definition_param_idContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var paramId = context.GetChild(0).GetText();
             ps.WriteLine(".param pmc " + paramId);
-
+            ps.Flush();
+            
             StackOutputStreams.Push(outStream);
-        }
-
-        public override void EnterReturn_statement(RubyParser.Return_statementContext context)
-        {
-            base.EnterReturn_statement(context);
         }
 
         public override void ExitReturn_statement(RubyParser.Return_statementContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var typeArg = WhichValues.Get(context.GetChild(1));
 
@@ -376,13 +279,15 @@ namespace RubyCompiler.rubyAntlrCompiler
             var assignmentStream = StackOutputStreams.Pop();
             var argsStream = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
+            argsStream.Seek(0, SeekOrigin.Begin);
             var args = new StreamReader(argsStream).ReadToEnd();
             var funcName = context.name.GetText();
             args = args.Replace(",$", "");
             // ASSIGNMENT of dynamic function params
-            assignmentStream.CopyTo(outStream);
+            assignmentStream.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(assignmentStream).ReadToEnd());
             // call of function
             StringValues.Put(context, funcName + "(" + args + ")");
 
@@ -391,46 +296,11 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(outStream);
         }
 
-        public override void EnterFunction_call_param_list(RubyParser.Function_call_param_listContext context)
-        {
-            base.EnterFunction_call_param_list(context);
-        }
-
-        public override void ExitFunction_call_param_list(RubyParser.Function_call_param_listContext context)
-        {
-            base.ExitFunction_call_param_list(context);
-        }
-
-        public override void EnterFunction_call_params(RubyParser.Function_call_paramsContext context)
-        {
-            base.EnterFunction_call_params(context);
-        }
-
-        public override void ExitFunction_call_params(RubyParser.Function_call_paramsContext context)
-        {
-            base.ExitFunction_call_params(context);
-        }
-
-        public override void EnterFunction_param(RubyParser.Function_paramContext context)
-        {
-            base.EnterFunction_param(context);
-        }
-
-        public override void ExitFunction_param(RubyParser.Function_paramContext context)
-        {
-            base.ExitFunction_param(context);
-        }
-
-        public override void EnterFunction_unnamed_param(RubyParser.Function_unnamed_paramContext context)
-        {
-            base.EnterFunction_unnamed_param(context);
-        }
-
         public override void ExitFunction_unnamed_param(RubyParser.Function_unnamed_paramContext context)
         {
             var assignmentStream = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             switch(WhichValues.Get(context.GetChild(0))) 
             {
@@ -456,16 +326,11 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(assignmentStream);
         }
 
-        public override void EnterFunction_named_param(RubyParser.Function_named_paramContext context)
-        {
-            base.EnterFunction_named_param(context);
-        }
-
         public override void ExitFunction_named_param(RubyParser.Function_named_paramContext context)
         {
             var assignmentStream = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var idParam = context.GetChild(0).GetText();
 
@@ -503,19 +368,15 @@ namespace RubyCompiler.rubyAntlrCompiler
         {
             var func = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
+            func.Seek(0, SeekOrigin.Begin);
             var funcCall = new StreamReader(func).ReadToEnd();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             ps.Write(funcCall);
 
             StringValues.Put(context, StringValues.Get(context.GetChild(0)));
             WhichValues.Put(context, "Dynamic");
             StackOutputStreams.Push(outStream);
-        }
-
-        public override void EnterAll_result(RubyParser.All_resultContext context)
-        {
-            base.EnterAll_result(context);
         }
 
         public override void ExitAll_result(RubyParser.All_resultContext context)
@@ -545,16 +406,6 @@ namespace RubyCompiler.rubyAntlrCompiler
                     WhichValues.Put(context, typeArg);
                     break;
             }
-        }
-
-        public override void EnterElsif_statement(RubyParser.Elsif_statementContext context)
-        {
-            base.EnterElsif_statement(context);
-        }
-
-        public override void ExitElsif_statement(RubyParser.Elsif_statementContext context)
-        {
-            base.ExitElsif_statement(context);
         }
 
         public override void EnterIf_elsif_statement(RubyParser.If_elsif_statementContext context)
@@ -592,25 +443,28 @@ namespace RubyCompiler.rubyAntlrCompiler
             var bodyStream = StackOutputStreams.Pop();
             var condStream = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var conditionVar = StringValues.Get(context.GetChild(1));
 
             var labelFalse = StackLoopLabels.Pop();
             var labelTrue = StackLoopLabels.Pop();
 
             ps.WriteLine("");
-            condStream.CopyTo(outStream);
+            condStream.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(condStream).ReadToEnd());
             ps.WriteLine("if " + conditionVar + " goto label_" + labelTrue);
             ps.WriteLine("goto label_" + labelFalse);
             ps.WriteLine("label_" + labelTrue + ":");
 
-            bodyStream.CopyTo(outStream);
+            bodyStream.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(bodyStream).ReadToEnd());
 
             if (childCount > 4) 
             {
                 ps.WriteLine("goto label_" + labelEnd);
                 ps.WriteLine("label_" + labelFalse + ":");
-                elseBodyStream.CopyTo(outStream);
+                elseBodyStream.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(elseBodyStream).ReadToEnd());
             }
             else 
             {
@@ -649,22 +503,25 @@ namespace RubyCompiler.rubyAntlrCompiler
             var bodyStream = StackOutputStreams.Pop();
             var condStream = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var conditionVar = StringValues.Get(context.GetChild(1));
 
             ps.WriteLine("");
-            condStream.CopyTo(outStream);
+            condStream.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(condStream).ReadToEnd());
             ps.WriteLine("if " + conditionVar + " goto label_" + labelTrue);
             ps.WriteLine("goto label_" + labelFalse);
             ps.WriteLine("label_" + labelTrue + ":");
 
-            bodyStream.CopyTo(outStream);
+            bodyStream.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(bodyStream).ReadToEnd());
 
             if (child.Equals("else") || child.Equals("elsif")) 
             {
                 ps.WriteLine("goto label_" + labelEnd);
                 ps.WriteLine("label_" + labelFalse + ":");
-                elseBodyStream.CopyTo(outStream);
+                elseBodyStream.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(elseBodyStream).ReadToEnd());
                 ps.WriteLine("label_" + labelEnd + ":");     
             }
             else 
@@ -704,22 +561,25 @@ namespace RubyCompiler.rubyAntlrCompiler
             var bodyStream = StackOutputStreams.Pop();
             var condStream = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var conditionVar = StringValues.Get(context.GetChild(1));
 
             ps.WriteLine("");
-            condStream.CopyTo(outStream);
+            condStream.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(condStream).ReadToEnd());
             ps.WriteLine("unless " + conditionVar + " goto label_" + labelTrue);
             ps.WriteLine("goto label_" + labelFalse);
             ps.WriteLine("label_" + labelTrue + ":");
 
-            bodyStream.CopyTo(outStream);
+            bodyStream.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(bodyStream).ReadToEnd());
 
             if (child.Equals("else") || child.Equals("elsif")) 
             {
                 ps.WriteLine("goto label_" + labelEnd);
-                ps.WriteLine("label_" + labelFalse + ":");    
-                elseBodyStream.CopyTo(outStream);
+                ps.WriteLine("label_" + labelFalse + ":");
+                elseBodyStream.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(elseBodyStream).ReadToEnd());
                 ps.WriteLineAsync("label_" + labelEnd + ":");     
             }
             else 
@@ -741,16 +601,18 @@ namespace RubyCompiler.rubyAntlrCompiler
             var body = StackOutputStreams.Pop();
             var cond = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var labelEnd = StackLoopLabels.Pop();
             var labelBegin = StackLoopLabels.Pop();
 
             var conditionVar = StringValues.Get(context.GetChild(1));
             ps.WriteLine("label_" + labelBegin + ":");
-            cond.CopyTo(outStream);
+            cond.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(cond).ReadToEnd());
             ps.WriteLine("unless " + conditionVar + " goto label_" + labelEnd);
-            body.CopyTo(outStream);
+            body.Seek(0, SeekOrigin.Begin);
+            ps.WriteLine(new StreamReader(body).ReadToEnd());
             ps.WriteLine("goto label_" + labelBegin);
             ps.WriteLine("label_" + labelEnd + ":");
 
@@ -770,32 +632,40 @@ namespace RubyCompiler.rubyAntlrCompiler
             var temp2 = StackOutputStreams.Pop();
             var temp1 = StackOutputStreams.Pop();
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var labelEnd = StackLoopLabels.Pop();
             var labelBegin = StackLoopLabels.Pop();
 
             if (context.ChildCount == 11) 
             {
-                temp1.CopyTo(outStream);
+                temp1.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(temp1).ReadToEnd());
                 var cond = StringValues.Get(context.GetChild(4));
                 ps.WriteLine("label_" + labelBegin + ":");
-                temp2.CopyTo(outStream);
+                temp2.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(temp2).ReadToEnd());
                 ps.WriteLine("unless " + cond + " goto label_" + labelEnd);
-                temp4.CopyTo(outStream);
-                temp3.CopyTo(outStream);
+                temp4.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(temp4).ReadToEnd());
+                temp3.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(temp3).ReadToEnd());
                 ps.WriteLine("goto label_" + labelBegin);
                 ps.WriteLine("label_" + labelEnd + ":");
             }
             else if (context.ChildCount == 9) 
             {
-                temp1.CopyTo(outStream);
+                temp1.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(temp1).ReadToEnd());
                 var cond = StringValues.Get(context.GetChild(3));
                 ps.WriteLine("label_" + labelBegin + ":");
-                temp2.CopyTo(outStream);
+                temp2.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(temp2).ReadToEnd());
                 ps.WriteLine("unless " + cond + " goto label_" + labelEnd);
-                temp4.CopyTo(outStream);
-                temp3.CopyTo(outStream);
+                temp4.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(temp4).ReadToEnd());
+                temp3.Seek(0, SeekOrigin.Begin);
+                ps.WriteLine(new StreamReader(temp3).ReadToEnd());
                 ps.WriteLine("goto label_" + labelBegin);
                 ps.WriteLine("label_" + labelEnd + ":");
             }
@@ -807,31 +677,6 @@ namespace RubyCompiler.rubyAntlrCompiler
         {
             var temp1 = new MemoryStream();
             StackOutputStreams.Push(temp1);
-        }
-
-        public override void ExitInit_expression(RubyParser.Init_expressionContext context)
-        {
-            base.ExitInit_expression(context);
-        }
-
-        public override void EnterAll_assignment(RubyParser.All_assignmentContext context)
-        {
-            base.EnterAll_assignment(context);
-        }
-
-        public override void ExitAll_assignment(RubyParser.All_assignmentContext context)
-        {
-            base.ExitAll_assignment(context);
-        }
-
-        public override void EnterFor_init_list(RubyParser.For_init_listContext context)
-        {
-            base.EnterFor_init_list(context);
-        }
-
-        public override void ExitFor_init_list(RubyParser.For_init_listContext context)
-        {
-            base.ExitFor_init_list(context);
         }
 
         public override void EnterCond_expression(RubyParser.Cond_expressionContext context)
@@ -851,56 +696,16 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(temp3);
         }
 
-        public override void ExitLoop_expression(RubyParser.Loop_expressionContext context)
-        {
-            base.ExitLoop_expression(context);
-        }
-
-        public override void EnterFor_loop_list(RubyParser.For_loop_listContext context)
-        {
-            base.EnterFor_loop_list(context);
-        }
-
-        public override void ExitFor_loop_list(RubyParser.For_loop_listContext context)
-        {
-            base.ExitFor_loop_list(context);
-        }
-
         public override void EnterStatement_body(RubyParser.Statement_bodyContext context)
         {
             var temp4 = new MemoryStream();
             StackOutputStreams.Push(temp4);
         }
 
-        public override void ExitStatement_body(RubyParser.Statement_bodyContext context)
-        {
-            base.ExitStatement_body(context);
-        }
-
-        public override void EnterStatement_expression_list(RubyParser.Statement_expression_listContext context)
-        {
-            base.EnterStatement_expression_list(context);
-        }
-
-        public override void ExitStatement_expression_list(RubyParser.Statement_expression_listContext context)
-        {
-            base.ExitStatement_expression_list(context);
-        }
-
-        public override void EnterAssignment(RubyParser.AssignmentContext context)
-        {
-            base.EnterAssignment(context);
-        }
-
-        public override void ExitAssignment(RubyParser.AssignmentContext context)
-        {
-            base.ExitAssignment(context);
-        }
-
         public override void EnterDynamic_assignment(RubyParser.Dynamic_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var definitions = StackDefinitions.Pop();
 
             string variable;
@@ -934,7 +739,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         public override void ExitDynamic_assignment(RubyParser.Dynamic_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var str = context.var_id.GetText() + " " + context.op.Text + " " + StringValues.Get(context.GetChild(2));
             NumReg = 0;
@@ -946,7 +751,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         public override void EnterInt_assignment(RubyParser.Int_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var definitions = StackDefinitions.Pop();
 
             string variable;
@@ -979,7 +784,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         public override void ExitInt_assignment(RubyParser.Int_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var str = context.var_id.GetText() + " " + context.op.Text + " " + IntValues.Get(context.GetChild(2));
             ps.WriteLine(str);
@@ -990,7 +795,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         public override void EnterFloat_assignment(RubyParser.Float_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var definitions = StackDefinitions.Pop();
 
             string variable;
@@ -1023,7 +828,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         public override void ExitFloat_assignment(RubyParser.Float_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var str = context.var_id.GetText() + " " + context.op.Text + " " + FloatValues.Get(context.GetChild(2));
             ps.WriteLine(str);
@@ -1034,7 +839,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         public override void EnterString_assignment(RubyParser.String_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var definitions = StackDefinitions.Pop();
 
             string variable;
@@ -1067,7 +872,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         public override void ExitString_assignment(RubyParser.String_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var str = context.var_id.GetText() + " " + context.op.Text + " \"" + StringValues.Get(context.GetChild(2)) + "\"";
             ps.WriteLine(str);
@@ -1078,7 +883,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         public override void EnterInitial_array_assignment(RubyParser.Initial_array_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var definitions = StackDefinitions.Pop();
 
             var variable = context.var_id.GetText();
@@ -1093,21 +898,11 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(outStream);
             StackDefinitions.Push(definitions);
         }
-
-        public override void ExitInitial_array_assignment(RubyParser.Initial_array_assignmentContext context)
-        {
-            base.ExitInitial_array_assignment(context);
-        }
-
-        public override void EnterArray_assignment(RubyParser.Array_assignmentContext context)
-        {
-            base.EnterArray_assignment(context);
-        }
-
+        
         public override void ExitArray_assignment(RubyParser.Array_assignmentContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var definitions = StackDefinitions.Pop();
             var arrDef = StringValues.Get(context.GetChild(0));
 
@@ -1137,31 +932,6 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackDefinitions.Push(definitions);
         }
 
-        public override void EnterArray_definition(RubyParser.Array_definitionContext context)
-        {
-            base.EnterArray_definition(context);
-        }
-
-        public override void ExitArray_definition(RubyParser.Array_definitionContext context)
-        {
-            base.ExitArray_definition(context);
-        }
-
-        public override void EnterArray_definition_elements(RubyParser.Array_definition_elementsContext context)
-        {
-            base.EnterArray_definition_elements(context);
-        }
-
-        public override void ExitArray_definition_elements(RubyParser.Array_definition_elementsContext context)
-        {
-            base.ExitArray_definition_elements(context);
-        }
-
-        public override void EnterArray_selector(RubyParser.Array_selectorContext context)
-        {
-            base.EnterArray_selector(context);
-        }
-
         public override void ExitArray_selector(RubyParser.Array_selectorContext context)
         {
             var name = StringValues.Get(context.GetChild(0));
@@ -1182,15 +952,10 @@ namespace RubyCompiler.rubyAntlrCompiler
             WhichValues.Put(context, "Dynamic");
         }
 
-        public override void EnterDynamic_result(RubyParser.Dynamic_resultContext context)
-        {
-            base.EnterDynamic_result(context);
-        }
-
         public override void ExitDynamic_result(RubyParser.Dynamic_resultContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             if ( context.ChildCount == 3 && context.op != null ) 
             { 
@@ -1263,15 +1028,10 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(outStream);
         }
 
-        public override void EnterDynamic(RubyParser.DynamicContext context)
-        {
-            base.EnterDynamic(context);
-        }
-
         public override void ExitDynamic(RubyParser.DynamicContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var strDynTerm = StringValues.Get(context.GetChild(0));
             ps.WriteLine("$P" + NumReg + " = new \"Integer\"");
@@ -1281,11 +1041,6 @@ namespace RubyCompiler.rubyAntlrCompiler
             WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
 
             StackOutputStreams.Push(outStream);
-        }
-
-        public override void EnterInt_result(RubyParser.Int_resultContext context)
-        {
-            base.EnterInt_result(context);
         }
 
         public override void ExitInt_result(RubyParser.Int_resultContext context)
@@ -1329,11 +1084,6 @@ namespace RubyCompiler.rubyAntlrCompiler
                 IntValues.Put(context, IntValues.Get(context.GetChild(1)));
                 WhichValues.Put(context, "Integer");
             }
-        }
-
-        public override void EnterFloat_result(RubyParser.Float_resultContext context)
-        {
-            base.EnterFloat_result(context);
         }
 
         public override void ExitFloat_result(RubyParser.Float_resultContext context)
@@ -1397,11 +1147,6 @@ namespace RubyCompiler.rubyAntlrCompiler
             }
         }
 
-        public override void EnterString_result(RubyParser.String_resultContext context)
-        {
-            base.EnterString_result(context);
-        }
-
         public override void ExitString_result(RubyParser.String_resultContext context)
         {
             if ( context.ChildCount == 3 && context.op != null )
@@ -1437,7 +1182,7 @@ namespace RubyCompiler.rubyAntlrCompiler
                 switch(context.op.Type)
                 {
                     case RubyParser.MUL:
-                        StringValues.Put(context,repeat(str, times));
+                        StringValues.Put(context,Repeat(str, times));
                         WhichValues.Put(context, "String");
                         break;
                     case RubyParser.PLUS:
@@ -1458,15 +1203,10 @@ namespace RubyCompiler.rubyAntlrCompiler
             }
         }
 
-        public override void EnterComparison_list(RubyParser.Comparison_listContext context)
-        {
-            base.EnterComparison_list(context);
-        }
-
         public override void ExitComparison_list(RubyParser.Comparison_listContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             if ( context.ChildCount == 3 && context.op != null ) 
             {
@@ -1503,15 +1243,10 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(outStream);
         }
 
-        public override void EnterComparison(RubyParser.ComparisonContext context)
-        {
-            base.EnterComparison(context);
-        }
-
         public override void ExitComparison(RubyParser.ComparisonContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var left = StringValues.Get(context.GetChild(0));
             var right = StringValues.Get(context.GetChild(2));
@@ -1545,15 +1280,10 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(outStream);
         }
 
-        public override void EnterComp_var(RubyParser.Comp_varContext context)
-        {
-            base.EnterComp_var(context);
-        }
-
         public override void ExitComp_var(RubyParser.Comp_varContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var typeArg = WhichValues.Get(context.GetChild(0));
             var strOutput = "";
@@ -1589,35 +1319,10 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(outStream);
         }
 
-        public override void EnterLvalue(RubyParser.LvalueContext context)
-        {
-            base.EnterLvalue(context);
-        }
-
-        public override void ExitLvalue(RubyParser.LvalueContext context)
-        {
-            base.ExitLvalue(context);
-        }
-
-        public override void EnterRvalue(RubyParser.RvalueContext context)
-        {
-            base.EnterRvalue(context);
-        }
-
-        public override void ExitRvalue(RubyParser.RvalueContext context)
-        {
-            base.ExitRvalue(context);
-        }
-
-        public override void EnterBreak_expression(RubyParser.Break_expressionContext context)
-        {
-            base.EnterBreak_expression(context);
-        }
-
         public override void ExitBreak_expression(RubyParser.Break_expressionContext context)
         {
             var outStream = StackOutputStreams.Pop();
-            var ps = new StreamWriter(outStream);
+            var ps = new StreamWriter(outStream) {AutoFlush = true};
             var labelEndCurrentLoop = StackLoopLabels.Pop();
 
             ps.WriteLine("goto label_" + labelEndCurrentLoop);
@@ -1626,20 +1331,10 @@ namespace RubyCompiler.rubyAntlrCompiler
             StackOutputStreams.Push(outStream);
         }
 
-        public override void EnterLiteral_t(RubyParser.Literal_tContext context)
-        {
-            base.EnterLiteral_t(context);
-        }
-
         public override void ExitLiteral_t(RubyParser.Literal_tContext context)
         {
             StringValues.Put(context, StringValues.Get(context.GetChild(0)));
             WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
-        }
-
-        public override void EnterFloat_t(RubyParser.Float_tContext context)
-        {
-            base.EnterFloat_t(context);
         }
 
         public override void ExitFloat_t(RubyParser.Float_tContext context)
@@ -1648,40 +1343,10 @@ namespace RubyCompiler.rubyAntlrCompiler
             WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
         }
 
-        public override void EnterInt_t(RubyParser.Int_tContext context)
-        {
-            base.EnterInt_t(context);
-        }
-
         public override void ExitInt_t(RubyParser.Int_tContext context)
         {
             IntValues.Put(context, IntValues.Get(context.GetChild(0)));
             WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
-        }
-
-        public override void EnterBool_t(RubyParser.Bool_tContext context)
-        {
-            base.EnterBool_t(context);
-        }
-
-        public override void ExitBool_t(RubyParser.Bool_tContext context)
-        {
-            base.ExitBool_t(context);
-        }
-
-        public override void EnterNil_t(RubyParser.Nil_tContext context)
-        {
-            base.EnterNil_t(context);
-        }
-
-        public override void ExitNil_t(RubyParser.Nil_tContext context)
-        {
-            base.ExitNil_t(context);
-        }
-
-        public override void EnterId(RubyParser.IdContext context)
-        {
-            base.EnterId(context);
         }
 
         public override void ExitId(RubyParser.IdContext context)
@@ -1690,68 +1355,16 @@ namespace RubyCompiler.rubyAntlrCompiler
             WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
         }
 
-        public override void EnterId_global(RubyParser.Id_globalContext context)
-        {
-            base.EnterId_global(context);
-        }
-
-        public override void ExitId_global(RubyParser.Id_globalContext context)
-        {
-            base.ExitId_global(context);
-        }
-
-        public override void EnterId_function(RubyParser.Id_functionContext context)
-        {
-            base.EnterId_function(context);
-        }
-
-        public override void ExitId_function(RubyParser.Id_functionContext context)
-        {
-            base.ExitId_function(context);
-        }
-
-        public override void EnterTerminator(RubyParser.TerminatorContext context)
-        {
-            base.EnterTerminator(context);
-        }
-
-        public override void ExitTerminator(RubyParser.TerminatorContext context)
-        {
-            base.ExitTerminator(context);
-        }
-
-        public override void EnterElse_token(RubyParser.Else_tokenContext context)
-        {
-            base.EnterElse_token(context);
-        }
-
-        public override void ExitElse_token(RubyParser.Else_tokenContext context)
-        {
-            base.ExitElse_token(context);
-        }
-
-        public override void EnterCrlf(RubyParser.CrlfContext context)
-        {
-            base.EnterCrlf(context);
-        }
-
         public override void ExitCrlf(RubyParser.CrlfContext context)
         {
             NumStr++;
         }
 
-        public override void EnterEveryRule(ParserRuleContext context)
-        {
-            base.EnterEveryRule(context);
-        }
-
-        public override void ExitEveryRule(ParserRuleContext context)
-        {
-            base.ExitEveryRule(context);
-        }
-
         public override void VisitTerminal(ITerminalNode node)
         {
+            var ci = (CultureInfo) CultureInfo.CurrentCulture.Clone();
+            ci.NumberFormat.CurrencyDecimalSeparator = ".";
+            
             var symbol = node.Symbol;
             switch(symbol.Type) 
             {
@@ -1760,7 +1373,7 @@ namespace RubyCompiler.rubyAntlrCompiler
                     WhichValues.Put(node, "Integer");
                     break;
                 case RubyParser.FLOAT:
-                    FloatValues.Put(node, float.Parse(symbol.Text));
+                    FloatValues.Put(node, float.Parse(symbol.Text, NumberStyles.Any, ci));
                     WhichValues.Put(node, "Float");
                     break;
                 case RubyParser.LITERAL:
@@ -1780,9 +1393,5 @@ namespace RubyCompiler.rubyAntlrCompiler
             }
         }
 
-        public override void VisitErrorNode(IErrorNode node)
-        {
-            base.VisitErrorNode(node);
-        }
     }
 }

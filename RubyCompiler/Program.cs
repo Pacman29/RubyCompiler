@@ -10,7 +10,7 @@ namespace RubyCompiler
         static void Main(string[] args)
         {
             var compiler = new Compiler();
-            string source = File.ReadAllText( Path.Combine(Environment.CurrentDirectory,  @"samples/num.lua"), Encoding.UTF8);
+            string source = File.ReadAllText( Path.Combine(Environment.CurrentDirectory,  @"samples/num.rb"), Encoding.UTF8);
             compiler.Compile("aaa", source);
             foreach (var compilerToken in compiler.Tokens)
             {
