@@ -582,12 +582,44 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterFloat_assignment(RubyParser.Float_assignmentContext context)
         {
-            base.EnterFloat_assignment(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            var definitions = StackDefinitions.Pop();
+
+            string variable;
+            switch(context.op.Type)
+            {
+                case RubyParser.ASSIGN:
+                    variable = context.var_id.GetText();
+                    if (!IsDefined(definitions, variable)) {
+                        ps.WriteLine("");
+                        ps.WriteLine(".local pmc " + context.var_id.GetText());
+                        ps.WriteLine(context.var_id.GetText() + "= new \"Double\"");
+                        definitions.AddLast(context.var_id.GetText());
+                    }
+                    break;
+                default:
+                    variable = context.var_id.GetText();
+                    if (!IsDefined(definitions, variable)) {
+                        PrintStreamError.WriteLine("line " + NumStr + " Error! Undefined variable " + variable + "!");
+                        SemanticErrorsNum++;
+                    }
+                    break;
+            }
+
+            StackOutputStreams.Push(outStream);
+            StackDefinitions.Push(definitions);
         }
 
         public override void ExitFloat_assignment(RubyParser.Float_assignmentContext context)
         {
-            base.ExitFloat_assignment(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var str = context.var_id.GetText() + " " + context.op.Text + " " + FloatValues.Get(context.GetChild(2));
+            ps.WriteLine(str);
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterString_assignment(RubyParser.String_assignmentContext context)
@@ -723,7 +755,63 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitFloat_result(RubyParser.Float_resultContext context)
         {
-            base.ExitFloat_result(context);
+            if ( context.ChildCount == 3 && context.op != null )
+            {
+                float left = 0;
+                float right = 0;
+
+                switch(WhichValues.Get(context.GetChild(0))) {
+                    case "Integer":
+                        left = (float) IntValues.Get(context.GetChild(0));
+                        break;
+                    case "Float":
+                        left = FloatValues.Get(context.GetChild(0));
+                        break;
+                }
+
+                switch(WhichValues.Get(context.GetChild(2))) {
+                    case "Integer":
+                        right = (float) IntValues.Get(context.GetChild(2));
+                        break;
+                    case "Float":
+                        right = FloatValues.Get(context.GetChild(2));
+                        break;
+                }
+
+                switch(context.op.Type) 
+                {
+                    case RubyParser.MUL:
+                        FloatValues.Put(context, left * right);
+                        WhichValues.Put(context, "Float");
+                        break;
+                    case RubyParser.DIV:
+                        FloatValues.Put(context, left / right);
+                        WhichValues.Put(context, "Float");
+                        break;
+                    case RubyParser.MOD:
+                        FloatValues.Put(context, left % right);
+                        WhichValues.Put(context, "Float");
+                        break;
+                    case RubyParser.PLUS:
+                        FloatValues.Put(context, left + right);
+                        WhichValues.Put(context, "Float");
+                        break;
+                    case RubyParser.MINUS:
+                        FloatValues.Put(context, left - right);
+                        WhichValues.Put(context, "Float");
+                        break;
+                }
+            }
+            else if ( context.ChildCount == 1 ) 
+            { 
+                FloatValues.Put(context, FloatValues.Get(context.GetChild(0)));
+                WhichValues.Put(context, "Float");
+            }
+            else if ( context.ChildCount == 3 && context.op == null )
+            { 
+                FloatValues.Put(context, FloatValues.Get(context.GetChild(1)));
+                WhichValues.Put(context, "Float");
+            }
         }
 
         public override void EnterString_result(RubyParser.String_resultContext context)
@@ -813,7 +901,8 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitFloat_t(RubyParser.Float_tContext context)
         {
-            base.ExitFloat_t(context);
+            FloatValues.Put(context, FloatValues.Get(context.GetChild(0)));
+            WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
         }
 
         public override void EnterInt_t(RubyParser.Int_tContext context)
