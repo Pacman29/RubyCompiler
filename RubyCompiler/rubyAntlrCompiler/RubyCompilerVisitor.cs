@@ -82,6 +82,7 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override CompilerResult VisitGlobal_get(RubyParser.Global_getContext context)
         {
+            
             return base.VisitGlobal_get(context);
         }
 
