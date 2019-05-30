@@ -1,1 +1,1 @@
-start docker build -t docker_llvm .
+start docker build -t docker_parrot .

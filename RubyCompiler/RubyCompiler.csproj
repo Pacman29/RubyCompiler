@@ -14,10 +14,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ClCompile Include="test_bytecode\main.cpp" />
-    </ItemGroup>
-
-    <ItemGroup>
       <Antlr4 Update="rubyAntlrCompiler\Ruby.g4">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </Antlr4>
