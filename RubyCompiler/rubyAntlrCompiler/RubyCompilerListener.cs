@@ -144,7 +144,8 @@ namespace RubyCompiler.rubyAntlrCompiler
 
             var typeArg = WhichValues.Get(context.GetChild(2));
 
-            switch(typeArg) {
+            switch(typeArg) 
+            {
                 case "Integer":
                     var resultInt = IntValues.Get(context.GetChild(2));
                     printStream.WriteLine("set_global \"" + global + "\", " + resultInt);
@@ -529,12 +530,48 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterDynamic_assignment(RubyParser.Dynamic_assignmentContext context)
         {
-            base.EnterDynamic_assignment(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            var definitions = StackDefinitions.Pop();
+
+            string variable;
+            switch(context.op.Type)
+            {
+                case RubyParser.ASSIGN:
+                    variable = context.var_id.GetText();
+                    if (!IsDefined(definitions, variable)) 
+                    {
+                        ps.WriteLine("");
+                        ps.WriteLine(".local pmc " + context.var_id.GetText());
+                        ps.WriteLine(context.var_id.GetText() + "= new \"Integer\"");
+                        definitions.AddLast(context.var_id.GetText());
+                        NumReg = 0;
+                    }
+                    break;
+                default:
+                    variable = context.var_id.GetText();
+                    if (!IsDefined(definitions, variable)) 
+                    {
+                        PrintStreamError.WriteLine("line " + NumStr + " Error! Undefined variable " + variable + "!");
+                        SemanticErrorsNum++;
+                    }
+                    break;
+            }
+
+            StackOutputStreams.Push(outStream); 
+            StackDefinitions.Push(definitions);
         }
 
         public override void ExitDynamic_assignment(RubyParser.Dynamic_assignmentContext context)
         {
-            base.ExitDynamic_assignment(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var str = context.var_id.GetText() + " " + context.op.Text + " " + StringValues.Get(context.GetChild(2));
+            NumReg = 0;
+            ps.WriteLine(str);
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterInt_assignment(RubyParser.Int_assignmentContext context)
@@ -726,7 +763,78 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitDynamic_result(RubyParser.Dynamic_resultContext context)
         {
-            base.ExitDynamic_result(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            if ( context.ChildCount == 3 && context.op != null ) 
+            { 
+
+                int intDyn = 0;
+                float floatDyn = 0;
+                var strDyn = "";
+                var strDyn1 = "";
+                var anotherNode = "";
+                var strOutput = "";
+
+                switch(WhichValues.Get(context.GetChild(0)))
+                {
+                    case "Integer":
+                        intDyn = IntValues.Get(context.GetChild(0));
+                        anotherNode = StringValues.Get(context.GetChild(2));
+                        strOutput = "$P" + NumReg + " = " + anotherNode + " " + context.op.Text + " " + intDyn;                  
+                        break;
+                    case "Float":
+                        floatDyn = FloatValues.Get(context.GetChild(0));
+                        anotherNode = StringValues.Get(context.GetChild(2));
+                        strOutput = "$P" + NumReg + " = " + anotherNode + " " + context.op.Text + " " + floatDyn;
+                        break;
+                    case "String":
+                        strDyn = StringValues.Get(context.GetChild(0));
+                        anotherNode = StringValues.Get(context.GetChild(2));
+                        strOutput = "$P" + NumReg + " = " + anotherNode + " " + context.op.Text + " " + strDyn;
+                        break;
+                    case "Dynamic":
+                        strDyn1 = StringValues.Get(context.GetChild(0));
+                        switch(WhichValues.Get(context.GetChild(2)))
+                        {
+                            case "Integer":
+                                intDyn = IntValues.Get(context.GetChild(2));
+                                strOutput = "$P" + NumReg + " = " + strDyn1 + " " + context.op.Text + " " + intDyn;                  
+                                break;
+                            case "Float":
+                                floatDyn = FloatValues.Get(context.GetChild(2));
+                                strOutput = "$P" + NumReg + " = " + strDyn1 + " " + context.op.Text + " " + floatDyn;
+                                break;
+                            case "String":
+                                strDyn = StringValues.Get(context.GetChild(2));
+                                strOutput = "$P" + NumReg + " = " + strDyn1 + " " + context.op.Text + " " + strDyn;
+                                break;
+                            case "Dynamic":
+                                strDyn = StringValues.Get(context.GetChild(2));
+                                strOutput = "$P" + NumReg + " = " + strDyn1 + " " + context.op.Text + " " + strDyn;
+                                break;
+                        }
+                        break;
+                }
+
+                ps.WriteLine("$P" + NumReg + " = new \"Integer\"");
+                ps.WriteLine(strOutput);
+                StringValues.Put(context, "$P" + NumReg);
+                WhichValues.Put(context, "Dynamic");
+                NumReg++;
+            }
+            else if ( context.ChildCount == 1 )
+            { 
+                StringValues.Put(context, StringValues.Get(context.GetChild(0)));
+                WhichValues.Put(context, "Dynamic");
+            }
+            else if ( context.ChildCount == 3 && context.op == null )
+            { 
+                StringValues.Put(context, StringValues.Get(context.GetChild(1)));
+                WhichValues.Put(context, "Dynamic");
+            }
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterDynamic(RubyParser.DynamicContext context)
@@ -736,7 +844,17 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitDynamic(RubyParser.DynamicContext context)
         {
-            base.ExitDynamic(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var strDynTerm = StringValues.Get(context.GetChild(0));
+            ps.WriteLine("$P" + NumReg + " = new \"Integer\"");
+            ps.WriteLine("$P" + NumReg + " = " + strDynTerm);
+            StringValues.Put(context, "$P" + NumReg);
+            NumReg++;
+            WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterInt_result(RubyParser.Int_resultContext context)
@@ -775,11 +893,13 @@ namespace RubyCompiler.rubyAntlrCompiler
                         break;
                 }
             }
-            else if ( context.ChildCount == 1 ) { 
+            else if ( context.ChildCount == 1 )
+            { 
                 IntValues.Put(context, IntValues.Get(context.GetChild(0)));
                 WhichValues.Put(context,  "Integer");
             }
-            else if ( context.ChildCount == 3 && context.op == null ) { 
+            else if ( context.ChildCount == 3 && context.op == null ) 
+            { 
                 IntValues.Put(context, IntValues.Get(context.GetChild(1)));
                 WhichValues.Put(context, "Integer");
             }
@@ -1032,7 +1152,8 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitId(RubyParser.IdContext context)
         {
-            base.ExitId(context);
+            StringValues.Put(context, StringValues.Get(context.GetChild(0)));
+            WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
         }
 
         public override void EnterId_global(RubyParser.Id_globalContext context)
