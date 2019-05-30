@@ -588,12 +588,29 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterWhile_statement(RubyParser.While_statementContext context)
         {
-            base.EnterWhile_statement(context);
+            StackLoopLabels.Push(++NumLabel);
+            StackLoopLabels.Push(++NumLabel);
         }
 
         public override void ExitWhile_statement(RubyParser.While_statementContext context)
         {
-            base.ExitWhile_statement(context);
+            var body = StackOutputStreams.Pop();
+            var cond = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var labelEnd = StackLoopLabels.Pop();
+            var labelBegin = StackLoopLabels.Pop();
+
+            var conditionVar = StringValues.Get(context.GetChild(1));
+            ps.WriteLine("label_" + labelBegin + ":");
+            cond.CopyTo(outStream);
+            ps.WriteLine("unless " + conditionVar + " goto label_" + labelEnd);
+            body.CopyTo(outStream);
+            ps.WriteLine("goto label_" + labelBegin);
+            ps.WriteLine("label_" + labelEnd + ":");
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterFor_statement(RubyParser.For_statementContext context)
