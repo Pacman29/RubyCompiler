@@ -12,10 +12,10 @@ namespace RubyCompiler
             var compiler = new Compiler();
             string source = File.ReadAllText( Path.Combine(Environment.CurrentDirectory,  @"samples/num.rb"), Encoding.UTF8);
             compiler.Compile("aaa", source);
-            foreach (var compilerToken in compiler.Tokens)
+            /**foreach (var compilerToken in compiler.Tokens)
             {
                 Console.WriteLine(compilerToken);
-            }
+            }**/
         }
     }
 }
