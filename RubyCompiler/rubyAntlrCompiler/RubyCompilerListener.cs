@@ -186,7 +186,10 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitFunction_inline_call(RubyParser.Function_inline_callContext context)
         {
-            base.ExitFunction_inline_call(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            ps.WriteLine(StringValues.Get(context.GetChild(0)));
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterRequire_block(RubyParser.Require_blockContext context)
@@ -211,27 +214,54 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterPir_expression_list(RubyParser.Pir_expression_listContext context)
         {
-            base.EnterPir_expression_list(context);
+            var emptyStream = new MemoryStream();
+            StackOutputStreams.Push(emptyStream);
         }
 
         public override void ExitPir_expression_list(RubyParser.Pir_expression_listContext context)
         {
-            base.ExitPir_expression_list(context);
+            var emptyStream = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            ps.WriteLine(context.GetText());
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterFunction_definition(RubyParser.Function_definitionContext context)
         {
-            base.EnterFunction_definition(context);
+            var funcDefinitions = new LinkedList<string>();
+            StackDefinitions.Push(funcDefinitions);
+            var funcParams = new MemoryStream();
+            StackOutputStreams.Push(funcParams);
+            var outStream = new MemoryStream();
+            StackOutputStreams.Push(outStream);
         }
 
         public override void ExitFunction_definition(RubyParser.Function_definitionContext context)
         {
-            base.ExitFunction_definition(context);
+            var funcBody = StackOutputStreams.Pop();
+            var funcParams = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var funcName = StringValues.Get(context.GetChild(0));
+            ps.WriteLine("\n.sub " + funcName);
+            ps.WriteLine("");
+            funcParams.CopyTo(outStream);
+            funcBody.CopyTo(outStream);
+            ps.Write(".end");
+
+            FunctionDefinitionStreams[funcName] = outStream;
+
+            StackDefinitions.Pop();
         }
 
         public override void EnterFunction_definition_body(RubyParser.Function_definition_bodyContext context)
         {
-            base.EnterFunction_definition_body(context);
+            var funcBody = new MemoryStream();
+            StackOutputStreams.Push(funcBody);
         }
 
         public override void ExitFunction_definition_body(RubyParser.Function_definition_bodyContext context)
@@ -246,7 +276,7 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitFunction_definition_header(RubyParser.Function_definition_headerContext context)
         {
-            base.ExitFunction_definition_header(context);
+            StringValues.Put(context, context.GetChild(1).GetText());
         }
 
         public override void EnterFunction_name(RubyParser.Function_nameContext context)
@@ -286,7 +316,13 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitFunction_definition_param_id(RubyParser.Function_definition_param_idContext context)
         {
-            base.ExitFunction_definition_param_id(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var paramId = context.GetChild(0).GetText();
+            ps.WriteLine(".param pmc " + paramId);
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterReturn_statement(RubyParser.Return_statementContext context)
@@ -296,17 +332,62 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitReturn_statement(RubyParser.Return_statementContext context)
         {
-            base.ExitReturn_statement(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var typeArg = WhichValues.Get(context.GetChild(1));
+
+            switch(typeArg) 
+            {
+                case "Integer":
+                    var resultInt = IntValues.Get(context.GetChild(1));
+                    ps.WriteLine(".return(" + resultInt + ")");
+                    break;
+                case "Float":
+                    var resultFloat = FloatValues.Get(context.GetChild(1));
+                    ps.WriteLine(".return(" + resultFloat + ")");
+                    break;
+                case "String":
+                    var resultString = StringValues.Get(context.GetChild(1));
+                    ps.WriteLine(".return(" + resultString + ")");
+                    break;
+                case "Dynamic":
+                    var resultDynamic = StringValues.Get(context.GetChild(1));
+                    ps.WriteLine(".return(" + resultDynamic + ")");
+                    break;
+            }
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterFunction_call(RubyParser.Function_callContext context)
         {
-            base.EnterFunction_call(context);
+            var outStream = StackOutputStreams.Pop();
+            var assignmentStream = new MemoryStream();
+            var argsStream = new MemoryStream();
+            StackOutputStreams.Push(outStream);
+            StackOutputStreams.Push(argsStream);
+            StackOutputStreams.Push(assignmentStream);
         }
 
         public override void ExitFunction_call(RubyParser.Function_callContext context)
         {
-            base.ExitFunction_call(context);
+            var assignmentStream = StackOutputStreams.Pop();
+            var argsStream = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var args = new StreamReader(argsStream).ReadToEnd();
+            var funcName = context.name.GetText();
+            args = args.Replace(",$", "");
+            // ASSIGNMENT of dynamic function params
+            assignmentStream.CopyTo(outStream);
+            // call of function
+            StringValues.Put(context, funcName + "(" + args + ")");
+
+            FunctionCalls.Add(funcName);
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterFunction_call_param_list(RubyParser.Function_call_param_listContext context)
@@ -346,7 +427,32 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitFunction_unnamed_param(RubyParser.Function_unnamed_paramContext context)
         {
-            base.ExitFunction_unnamed_param(context);
+            var assignmentStream = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            switch(WhichValues.Get(context.GetChild(0))) 
+            {
+                case "Integer":
+                    var resultInt = IntValues.Get(context.GetChild(0));
+                    ps.Write(resultInt + ",");
+                    break;
+                case "Float":
+                    var resultFloat = FloatValues.Get(context.GetChild(0));
+                    ps.Write(resultFloat + ",");
+                    break;
+                case "String":
+                    var resultString = StringValues.Get(context.GetChild(0));
+                    ps.Write("\"" + resultString + "\",");
+                    break;
+                case "Dynamic":
+                    var resultDynamic = StringValues.Get(context.GetChild(0));
+                    ps.Write(resultDynamic + ",");
+                    break;
+            }
+
+            StackOutputStreams.Push(outStream);
+            StackOutputStreams.Push(assignmentStream);
         }
 
         public override void EnterFunction_named_param(RubyParser.Function_named_paramContext context)
@@ -356,17 +462,54 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitFunction_named_param(RubyParser.Function_named_paramContext context)
         {
-            base.ExitFunction_named_param(context);
+            var assignmentStream = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var idParam = context.GetChild(0).GetText();
+
+            switch(WhichValues.Get(context.GetChild(2)))
+            {
+                case "Integer":
+                    var resultInt = IntValues.Get(context.GetChild(2));
+                    ps.Write(resultInt + " :named(\"" + idParam + "\"),");
+                    break;
+                case "Float":
+                    var resultFloat = FloatValues.Get(context.GetChild(2));
+                    ps.Write(resultFloat + " :named(\"" + idParam + "\"),");
+                    break;
+                case "String":
+                    var resultString = StringValues.Get(context.GetChild(2));
+                    ps.Write("\"" + resultString + "\" :named(\"" + idParam + "\"),");
+                    break;
+                case "Dynamic":
+                    var resultDynamic = StringValues.Get(context.GetChild(2));
+                    ps.Write(resultDynamic + " :named(\"" + idParam + "\"),");
+                    break;
+            }
+
+            StackOutputStreams.Push(outStream);
+            StackOutputStreams.Push(assignmentStream);
         }
 
         public override void EnterFunction_call_assignment(RubyParser.Function_call_assignmentContext context)
         {
-            base.EnterFunction_call_assignment(context);
+            var outStream = new MemoryStream();
+            StackOutputStreams.Push(outStream);
         }
 
         public override void ExitFunction_call_assignment(RubyParser.Function_call_assignmentContext context)
         {
-            base.ExitFunction_call_assignment(context);
+            var func = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var funcCall = new StreamReader(func).ReadToEnd();
+            var ps = new StreamWriter(outStream);
+
+            ps.Write(funcCall);
+
+            StringValues.Put(context, StringValues.Get(context.GetChild(0)));
+            WhichValues.Put(context, "Dynamic");
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterAll_result(RubyParser.All_resultContext context)
@@ -1472,7 +1615,14 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitBreak_expression(RubyParser.Break_expressionContext context)
         {
-            base.ExitBreak_expression(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            var labelEndCurrentLoop = StackLoopLabels.Pop();
+
+            ps.WriteLine("goto label_" + labelEndCurrentLoop);
+
+            StackLoopLabels.Push(labelEndCurrentLoop);
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterLiteral_t(RubyParser.Literal_tContext context)
