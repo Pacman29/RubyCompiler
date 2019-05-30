@@ -50,7 +50,7 @@ namespace RubyCompiler.rubyAntlrCompiler
 
             try
             {
-                new RubyCompilerVisitor(Path.Combine(Environment.CurrentDirectory,  @"test_bytecode/num.rb")).Visit(Tree);
+                new RubyCompilerListener(Path.Combine(Environment.CurrentDirectory,  @"test_bytecode/num.rb")).Visit(Tree);
             }
             catch (Exception e)
             {
