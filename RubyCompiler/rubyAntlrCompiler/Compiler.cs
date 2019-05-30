@@ -8,58 +8,41 @@ namespace RubyCompiler.rubyAntlrCompiler
 {
     public class Compiler
     {
-        
-        
         public void Compile(string fileName, string source)
         {
             Tokens = new List<IToken>();
-            
+
             RubyLexer lexer = null;
             RubyParser parser = null;
 
-            try
+
+            var stream = new AntlrInputStream(source);
+            lexer = new RubyLexer(stream);
+            var token = lexer.NextToken();
+            while (token.Type != RubyLexer.Eof)
             {
-                var stream = new AntlrInputStream(source);
-                lexer = new RubyLexer(stream);
-                var token = lexer.NextToken();
-                while (token.Type != RubyLexer.Eof)
-                {
-                    Tokens.Add(token);
-                    token = lexer.NextToken();
-                }
-                lexer.Reset();
-                lexer.Line = 0;
-                lexer._tokenStartCharPositionInLine = 0;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
+                Tokens.Add(token);
+                token = lexer.NextToken();
             }
 
-            try
-            {
-                var tokenStream = new CommonTokenStream(lexer);
-                parser = new RubyParser(tokenStream);
-                Tree = parser.prog();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
+            lexer.Reset();
+            lexer.Line = 0;
+            lexer._tokenStartCharPositionInLine = 0;
 
-            try
-            {
-                var walker = new ParseTreeWalker();
-                var listener = new RubyCompilerListener();
-                walker.Walk(listener, Tree);
-                
-                listener.CreateIRFile(Path.Combine(Environment.CurrentDirectory,  @"test_bytecode/num.pir"));
-                
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
+
+            var tokenStream = new CommonTokenStream(lexer);
+            parser = new RubyParser(tokenStream);
+            Tree = parser.prog();
+
+
+            var walker = new ParseTreeWalker();
+            var listener = new RubyCompilerListener();
+            walker.Walk(listener, Tree);
+
+            if (listener.HasSemanticError())
+                throw new Exception("Semantic error", new Exception(listener.GetErrors()));
+            else
+                listener.CreateIRFile(Path.Combine(Environment.CurrentDirectory, $"test_bytecode/{fileName}.pir"));
         }
 
         public IParseTree Tree { get; set; }

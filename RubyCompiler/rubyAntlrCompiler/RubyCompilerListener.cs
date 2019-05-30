@@ -12,28 +12,27 @@ namespace RubyCompiler.rubyAntlrCompiler
 {
     public class RubyCompilerListener : RubyBaseListener
     {
-
-        ParseTreeProperty<int> IntValues = new ParseTreeProperty<int>();
-        ParseTreeProperty<float> FloatValues = new ParseTreeProperty<float>();
-        ParseTreeProperty<string> StringValues = new ParseTreeProperty<string>();
-        ParseTreeProperty<string> WhichValues = new ParseTreeProperty<string>();
+        private readonly ParseTreeProperty<int> _intValues = new ParseTreeProperty<int>();
+        private readonly ParseTreeProperty<float> _floatValues = new ParseTreeProperty<float>();
+        private readonly ParseTreeProperty<string> _stringValues = new ParseTreeProperty<string>();
+        private readonly ParseTreeProperty<string> _whichValues = new ParseTreeProperty<string>();
         
-        Stack<MemoryStream> StackOutputStreams = new Stack<MemoryStream>();
-        Hashtable FunctionDefinitionStreams = new Hashtable();
-        MemoryStream MainStream = new MemoryStream();
-        MemoryStream FunctionStream = new MemoryStream();
-        MemoryStream ErrorStream = new MemoryStream();
-        StreamWriter PrintStreamError = null;
+        private readonly Stack<MemoryStream> _stackOutputStreams = new Stack<MemoryStream>();
+        private readonly Hashtable _functionDefinitionStreams = new Hashtable();
+        private readonly MemoryStream _mainStream = new MemoryStream();
+        private readonly MemoryStream _functionStream = new MemoryStream();
+        private readonly MemoryStream _errorStream = new MemoryStream();
+        private readonly StreamWriter _printStreamError = null;
 
-        private int SemanticErrorsNum = 0;
-        private int NumStr = 1;
-        private int NumRegInt = 0;
-        private int NumReg = 0;
-        private int NumLabel = 0;
-        Stack<int> StackLoopLabels = new Stack<int>();
-        LinkedList<string> MainDefenitions = new LinkedList<string>();
-        ArrayList FunctionCalls = new ArrayList();
-        Stack<LinkedList<string>> StackDefinitions = new Stack<LinkedList<string>>();
+        private int _semanticErrorsNum = 0;
+        private int _numStr = 1;
+        private int _numRegInt = 0;
+        private int _numReg = 0;
+        private int _numLabel = 0;
+        private readonly Stack<int> _stackLoopLabels = new Stack<int>();
+        private readonly LinkedList<string> _mainDefenitions = new LinkedList<string>();
+        private readonly ArrayList _functionCalls = new ArrayList();
+        private readonly Stack<LinkedList<string>> _stackDefinitions = new Stack<LinkedList<string>>();
 
         private bool IsDefined(LinkedList<string> definitions, string variable)
         {
@@ -51,7 +50,7 @@ namespace RubyCompiler.rubyAntlrCompiler
         
         public RubyCompilerListener()
         {
-            PrintStreamError = new StreamWriter(ErrorStream) {AutoFlush = true};
+            _printStreamError = new StreamWriter(_errorStream) {AutoFlush = true};
             CultureInfo = (CultureInfo) CultureInfo.CurrentCulture.Clone();
             CultureInfo.NumberFormat.CurrencyDecimalSeparator = ".";
             CultureInfo.NumberFormat.NumberDecimalSeparator = ".";
@@ -61,38 +60,48 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public void CreateIRFile(string path)
         {
-            ErrorStream.Seek(0, SeekOrigin.Begin);
-            var errorReader = new StreamReader(ErrorStream);
-            Console.WriteLine(errorReader.ReadToEnd());
-            
             var outStream = new StreamWriter(path) {AutoFlush = true};
-            var codeStream = StackOutputStreams.Pop();
+            var codeStream = _stackOutputStreams.Pop();
             codeStream.Seek(0, SeekOrigin.Begin);
             var irCode = new StreamReader(codeStream).ReadToEnd();
             Console.WriteLine(irCode);
             outStream.Write(irCode);
         }
 
+        public bool HasSemanticError()
+        {
+            return _semanticErrorsNum > 0;
+        }
+
+        public string GetErrors()
+        {
+            if (!HasSemanticError())
+                return "";
+
+            _errorStream.Seek(0, SeekOrigin.Begin);
+            return new StreamReader(_errorStream).ReadToEnd();
+        }
+
         public override void EnterProg(RubyParser.ProgContext context)
         {
-            MemoryStream outStream = MainStream;
+            MemoryStream outStream = _mainStream;
             var ps = new StreamWriter(outStream) {AutoFlush = true};
             ps.WriteLine(".sub main");
-            StackDefinitions.Push(MainDefenitions);
-            StackOutputStreams.Push(outStream);
+            _stackDefinitions.Push(_mainDefenitions);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitProg(RubyParser.ProgContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
             
             ps.WriteLine("\n.end");
             ps.WriteLine("\n.include \"stdlib/stdlib.pir\"");
 
-            foreach (var functionCall in FunctionCalls)
+            foreach (var functionCall in _functionCalls)
             {
-                MemoryStream funcStream = FunctionDefinitionStreams[functionCall] as MemoryStream;
+                MemoryStream funcStream = _functionDefinitionStreams[functionCall] as MemoryStream;
                 if (funcStream != null)
                 {
                     funcStream.Seek(0, SeekOrigin.Begin);
@@ -101,14 +110,14 @@ namespace RubyCompiler.rubyAntlrCompiler
                     
             }
 
-            StackDefinitions.Pop();
-            StackOutputStreams.Push(outStream);
+            _stackDefinitions.Pop();
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitGlobal_get(RubyParser.Global_getContext context)
         {
-            var outStream = StackOutputStreams.Pop();
-            var defenitions = StackDefinitions.Pop();
+            var outStream = _stackOutputStreams.Pop();
+            var defenitions = _stackDefinitions.Pop();
             var printStream = new StreamWriter(outStream) {AutoFlush = true};
 
             var variable = context.var_name.GetText();
@@ -124,87 +133,87 @@ namespace RubyCompiler.rubyAntlrCompiler
 
             printStream.WriteLine("get_global " + variable + ", \"" + global + "\"");
             
-            StackOutputStreams.Push(outStream);
-            StackDefinitions.Push(defenitions);
+            _stackOutputStreams.Push(outStream);
+            _stackDefinitions.Push(defenitions);
         }
 
         public override void ExitGlobal_set(RubyParser.Global_setContext context)
         {
-            var outStream = StackOutputStreams.Pop();
-            var definitions = StackDefinitions.Pop();
+            var outStream = _stackOutputStreams.Pop();
+            var definitions = _stackDefinitions.Pop();
             var printStream = new StreamWriter(outStream) {AutoFlush = true};
 
             var global = context.global_name.GetText();
 
-            var typeArg = WhichValues.Get(context.GetChild(2));
+            var typeArg = _whichValues.Get(context.GetChild(2));
 
             switch(typeArg) 
             {
                 case "Integer":
-                    var resultInt = IntValues.Get(context.GetChild(2));
+                    var resultInt = _intValues.Get(context.GetChild(2));
                     printStream.WriteLine("set_global \"" + global + "\", " + resultInt);
                     break;
                 case "Float":
-                    var resultFloat = FloatValues.Get(context.GetChild(2));
+                    var resultFloat = _floatValues.Get(context.GetChild(2));
                     printStream.WriteLine("set_global \"" + global + "\", " + resultFloat.ToString(CultureInfo));
                     break;
                 case "String":
-                    var resultString = StringValues.Get(context.GetChild(2));
+                    var resultString = _stringValues.Get(context.GetChild(2));
                     printStream.WriteLine("set_global \"" + global + "\", " + resultString);
                     break;
                 case "Dynamic":
-                    var resultDynamic = StringValues.Get(context.GetChild(2));
+                    var resultDynamic = _stringValues.Get(context.GetChild(2));
                     printStream.WriteLine("set_global \"" + global + "\", " + resultDynamic);
                     break;
             }
 
-            StackOutputStreams.Push(outStream);
-            StackDefinitions.Push(definitions);
+            _stackOutputStreams.Push(outStream);
+            _stackDefinitions.Push(definitions);
         }
 
         public override void ExitFunction_inline_call(RubyParser.Function_inline_callContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            ps.WriteLine(StringValues.Get(context.GetChild(0)));
-            StackOutputStreams.Push(outStream);
+            ps.WriteLine(_stringValues.Get(context.GetChild(0)));
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterPir_expression_list(RubyParser.Pir_expression_listContext context)
         {
             var emptyStream = new MemoryStream();
-            StackOutputStreams.Push(emptyStream);
+            _stackOutputStreams.Push(emptyStream);
         }
 
         public override void ExitPir_expression_list(RubyParser.Pir_expression_listContext context)
         {
-            var emptyStream = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var emptyStream = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             ps.WriteLine(context.GetText());
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterFunction_definition(RubyParser.Function_definitionContext context)
         {
             var funcDefinitions = new LinkedList<string>();
-            StackDefinitions.Push(funcDefinitions);
+            _stackDefinitions.Push(funcDefinitions);
             var funcParams = new MemoryStream();
-            StackOutputStreams.Push(funcParams);
+            _stackOutputStreams.Push(funcParams);
             var outStream = new MemoryStream();
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitFunction_definition(RubyParser.Function_definitionContext context)
         {
-            var funcBody = StackOutputStreams.Pop();
-            var funcParams = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var funcBody = _stackOutputStreams.Pop();
+            var funcParams = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var funcName = StringValues.Get(context.GetChild(0));
+            var funcName = _stringValues.Get(context.GetChild(0));
             ps.WriteLine("\n.sub " + funcName);
             ps.WriteLine("");
             funcParams.Seek(0, SeekOrigin.Begin);
@@ -213,79 +222,79 @@ namespace RubyCompiler.rubyAntlrCompiler
             ps.WriteLine(new StreamReader(funcBody).ReadToEnd());
             ps.Write(".end");
 
-            FunctionDefinitionStreams[funcName] = outStream;
+            _functionDefinitionStreams[funcName] = outStream;
 
-            StackDefinitions.Pop();
+            _stackDefinitions.Pop();
         }
 
         public override void EnterFunction_definition_body(RubyParser.Function_definition_bodyContext context)
         {
             var funcBody = new MemoryStream();
-            StackOutputStreams.Push(funcBody);
+            _stackOutputStreams.Push(funcBody);
         }
 
         public override void ExitFunction_definition_header(RubyParser.Function_definition_headerContext context)
         {
-            StringValues.Put(context, context.GetChild(1).GetText());
+            _stringValues.Put(context, context.GetChild(1).GetText());
         }
 
         public override void ExitFunction_definition_param_id(RubyParser.Function_definition_param_idContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var paramId = context.GetChild(0).GetText();
             ps.WriteLine(".param pmc " + paramId);
             ps.Flush();
             
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitReturn_statement(RubyParser.Return_statementContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var typeArg = WhichValues.Get(context.GetChild(1));
+            var typeArg = _whichValues.Get(context.GetChild(1));
 
             switch(typeArg) 
             {
                 case "Integer":
-                    var resultInt = IntValues.Get(context.GetChild(1));
+                    var resultInt = _intValues.Get(context.GetChild(1));
                     ps.WriteLine(".return(" + resultInt + ")");
                     break;
                 case "Float":
-                    var resultFloat = FloatValues.Get(context.GetChild(1));
+                    var resultFloat = _floatValues.Get(context.GetChild(1));
                     ps.WriteLine(".return(" + resultFloat.ToString(CultureInfo) + ")");
                     break;
                 case "String":
-                    var resultString = StringValues.Get(context.GetChild(1));
+                    var resultString = _stringValues.Get(context.GetChild(1));
                     ps.WriteLine(".return(" + resultString + ")");
                     break;
                 case "Dynamic":
-                    var resultDynamic = StringValues.Get(context.GetChild(1));
+                    var resultDynamic = _stringValues.Get(context.GetChild(1));
                     ps.WriteLine(".return(" + resultDynamic + ")");
                     break;
             }
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterFunction_call(RubyParser.Function_callContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var assignmentStream = new MemoryStream();
             var argsStream = new MemoryStream();
-            StackOutputStreams.Push(outStream);
-            StackOutputStreams.Push(argsStream);
-            StackOutputStreams.Push(assignmentStream);
+            _stackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(argsStream);
+            _stackOutputStreams.Push(assignmentStream);
         }
 
         public override void ExitFunction_call(RubyParser.Function_callContext context)
         {
-            var assignmentStream = StackOutputStreams.Pop();
-            var argsStream = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var assignmentStream = _stackOutputStreams.Pop();
+            var argsStream = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             argsStream.Seek(0, SeekOrigin.Begin);
@@ -296,121 +305,121 @@ namespace RubyCompiler.rubyAntlrCompiler
             assignmentStream.Seek(0, SeekOrigin.Begin);
             ps.WriteLine(new StreamReader(assignmentStream).ReadToEnd());
             // call of function
-            StringValues.Put(context, funcName + "(" + args + ")");
+            _stringValues.Put(context, funcName + "(" + args + ")");
 
-            FunctionCalls.Add(funcName);
+            _functionCalls.Add(funcName);
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitFunction_unnamed_param(RubyParser.Function_unnamed_paramContext context)
         {
-            var assignmentStream = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var assignmentStream = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            switch(WhichValues.Get(context.GetChild(0))) 
+            switch(_whichValues.Get(context.GetChild(0))) 
             {
                 case "Integer":
-                    var resultInt = IntValues.Get(context.GetChild(0));
+                    var resultInt = _intValues.Get(context.GetChild(0));
                     ps.Write(resultInt + ",");
                     break;
                 case "Float":
-                    var resultFloat = FloatValues.Get(context.GetChild(0));
+                    var resultFloat = _floatValues.Get(context.GetChild(0));
                     ps.Write(resultFloat.ToString(CultureInfo) + ",");
                     break;
                 case "String":
-                    var resultString = StringValues.Get(context.GetChild(0));
+                    var resultString = _stringValues.Get(context.GetChild(0));
                     ps.Write("\"" + resultString + "\",");
                     break;
                 case "Dynamic":
-                    var resultDynamic = StringValues.Get(context.GetChild(0));
+                    var resultDynamic = _stringValues.Get(context.GetChild(0));
                     ps.Write(resultDynamic + ",");
                     break;
             }
 
-            StackOutputStreams.Push(outStream);
-            StackOutputStreams.Push(assignmentStream);
+            _stackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(assignmentStream);
         }
 
         public override void ExitFunction_named_param(RubyParser.Function_named_paramContext context)
         {
-            var assignmentStream = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var assignmentStream = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             var idParam = context.GetChild(0).GetText();
 
-            switch(WhichValues.Get(context.GetChild(2)))
+            switch(_whichValues.Get(context.GetChild(2)))
             {
                 case "Integer":
-                    var resultInt = IntValues.Get(context.GetChild(2));
+                    var resultInt = _intValues.Get(context.GetChild(2));
                     ps.Write(resultInt + " :named(\"" + idParam + "\"),");
                     break;
                 case "Float":
-                    var resultFloat = FloatValues.Get(context.GetChild(2));
+                    var resultFloat = _floatValues.Get(context.GetChild(2));
                     ps.Write(resultFloat.ToString(CultureInfo) + " :named(\"" + idParam + "\"),");
                     break;
                 case "String":
-                    var resultString = StringValues.Get(context.GetChild(2));
+                    var resultString = _stringValues.Get(context.GetChild(2));
                     ps.Write("\"" + resultString + "\" :named(\"" + idParam + "\"),");
                     break;
                 case "Dynamic":
-                    var resultDynamic = StringValues.Get(context.GetChild(2));
+                    var resultDynamic = _stringValues.Get(context.GetChild(2));
                     ps.Write(resultDynamic + " :named(\"" + idParam + "\"),");
                     break;
             }
 
-            StackOutputStreams.Push(outStream);
-            StackOutputStreams.Push(assignmentStream);
+            _stackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(assignmentStream);
         }
 
         public override void EnterFunction_call_assignment(RubyParser.Function_call_assignmentContext context)
         {
             var outStream = new MemoryStream();
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitFunction_call_assignment(RubyParser.Function_call_assignmentContext context)
         {
-            var func = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var func = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             func.Seek(0, SeekOrigin.Begin);
             var funcCall = new StreamReader(func).ReadToEnd();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             ps.Write(funcCall);
 
-            StringValues.Put(context, StringValues.Get(context.GetChild(0)));
-            WhichValues.Put(context, "Dynamic");
-            StackOutputStreams.Push(outStream);
+            _stringValues.Put(context, _stringValues.Get(context.GetChild(0)));
+            _whichValues.Put(context, "Dynamic");
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitAll_result(RubyParser.All_resultContext context)
         {
-            var typeArg = WhichValues.Get(context.GetChild(0));
+            var typeArg = _whichValues.Get(context.GetChild(0));
             
             switch(typeArg)
             {
                 case "Integer":
-                    var resultInt = IntValues.Get(context.GetChild(0));
-                    IntValues.Put(context, resultInt);
-                    WhichValues.Put(context, typeArg);
+                    var resultInt = _intValues.Get(context.GetChild(0));
+                    _intValues.Put(context, resultInt);
+                    _whichValues.Put(context, typeArg);
                     break;
                 case "Float":
-                    var resultFloat = FloatValues.Get(context.GetChild(0));
-                    FloatValues.Put(context, resultFloat);
-                    WhichValues.Put(context, typeArg);
+                    var resultFloat = _floatValues.Get(context.GetChild(0));
+                    _floatValues.Put(context, resultFloat);
+                    _whichValues.Put(context, typeArg);
                     break;
                 case "String":
-                    var resultString = StringValues.Get(context.GetChild(0));
-                    StringValues.Put(context, "\"" + resultString + "\"");
-                    WhichValues.Put(context, typeArg);
+                    var resultString = _stringValues.Get(context.GetChild(0));
+                    _stringValues.Put(context, "\"" + resultString + "\"");
+                    _whichValues.Put(context, typeArg);
                     break;
                 case "Dynamic":
-                    var resultDynamic = StringValues.Get(context.GetChild(0));
-                    StringValues.Put(context, resultDynamic);
-                    WhichValues.Put(context, typeArg);
+                    var resultDynamic = _stringValues.Get(context.GetChild(0));
+                    _stringValues.Put(context, resultDynamic);
+                    _whichValues.Put(context, typeArg);
                     break;
             }
         }
@@ -423,17 +432,17 @@ namespace RubyCompiler.rubyAntlrCompiler
 
             if (childCount > 4)
             {
-                labelEnd = StackLoopLabels.Pop();
-                StackLoopLabels.Push(labelEnd);     
+                labelEnd = _stackLoopLabels.Pop();
+                _stackLoopLabels.Push(labelEnd);     
             }
 
-            StackLoopLabels.Push(++NumLabel);
-            StackLoopLabels.Push(++NumLabel);
+            _stackLoopLabels.Push(++_numLabel);
+            _stackLoopLabels.Push(++_numLabel);
 
             if (childCount > 4)
-                StackLoopLabels.Push(labelEnd);
+                _stackLoopLabels.Push(labelEnd);
 
-            StackOutputStreams.Push(elsifStream);
+            _stackOutputStreams.Push(elsifStream);
         }
 
         public override void ExitIf_elsif_statement(RubyParser.If_elsif_statementContext context)
@@ -443,18 +452,18 @@ namespace RubyCompiler.rubyAntlrCompiler
             var childCount = context.ChildCount;
 
             if (childCount > 4) {
-                elseBodyStream = StackOutputStreams.Pop();   
-                labelEnd = StackLoopLabels.Pop();  
+                elseBodyStream = _stackOutputStreams.Pop();   
+                labelEnd = _stackLoopLabels.Pop();  
             }
 
-            var bodyStream = StackOutputStreams.Pop();
-            var condStream = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var bodyStream = _stackOutputStreams.Pop();
+            var condStream = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var conditionVar = StringValues.Get(context.GetChild(1));
+            var conditionVar = _stringValues.Get(context.GetChild(1));
 
-            var labelFalse = StackLoopLabels.Pop();
-            var labelTrue = StackLoopLabels.Pop();
+            var labelFalse = _stackLoopLabels.Pop();
+            var labelTrue = _stackLoopLabels.Pop();
 
             ps.WriteLine("");
             condStream.Seek(0, SeekOrigin.Begin);
@@ -478,18 +487,18 @@ namespace RubyCompiler.rubyAntlrCompiler
                 ps.WriteLine("label_" + labelFalse + ":");
             }
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterIf_statement(RubyParser.If_statementContext context)
         {
-            StackLoopLabels.Push(++NumLabel);
-            StackLoopLabels.Push(++NumLabel);
+            _stackLoopLabels.Push(++_numLabel);
+            _stackLoopLabels.Push(++_numLabel);
 
             var child = context.GetChild(4).GetText();
 
             if (child.Equals("else") || child.Equals("elsif"))
-                StackLoopLabels.Push(++NumLabel);
+                _stackLoopLabels.Push(++_numLabel);
         }
 
         public override void ExitIf_statement(RubyParser.If_statementContext context)
@@ -500,18 +509,18 @@ namespace RubyCompiler.rubyAntlrCompiler
 
             if (child.Equals("else") || child.Equals("elsif"))
             {
-                elseBodyStream = StackOutputStreams.Pop();     
-                labelEnd = StackLoopLabels.Pop();
+                elseBodyStream = _stackOutputStreams.Pop();     
+                labelEnd = _stackLoopLabels.Pop();
             }
 
-            var labelFalse = StackLoopLabels.Pop();
-            var labelTrue = StackLoopLabels.Pop();
+            var labelFalse = _stackLoopLabels.Pop();
+            var labelTrue = _stackLoopLabels.Pop();
 
-            var bodyStream = StackOutputStreams.Pop();
-            var condStream = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var bodyStream = _stackOutputStreams.Pop();
+            var condStream = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var conditionVar = StringValues.Get(context.GetChild(1));
+            var conditionVar = _stringValues.Get(context.GetChild(1));
 
             ps.WriteLine("");
             condStream.Seek(0, SeekOrigin.Begin);
@@ -536,18 +545,18 @@ namespace RubyCompiler.rubyAntlrCompiler
                 ps.WriteLine("label_" + labelFalse + ":");
             }
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterUnless_statement(RubyParser.Unless_statementContext context)
         {
-            StackLoopLabels.Push(++NumLabel);
-            StackLoopLabels.Push(++NumLabel);
+            _stackLoopLabels.Push(++_numLabel);
+            _stackLoopLabels.Push(++_numLabel);
 
             var child = context.GetChild(4).GetText();
 
             if (child.Equals("else") || child.Equals("elsif"))
-                StackLoopLabels.Push(++NumLabel);
+                _stackLoopLabels.Push(++_numLabel);
         }
 
         public override void ExitUnless_statement(RubyParser.Unless_statementContext context)
@@ -558,18 +567,18 @@ namespace RubyCompiler.rubyAntlrCompiler
 
             if (child.Equals("else") || child.Equals("elsif"))
             {
-                elseBodyStream = StackOutputStreams.Pop();     
-                labelEnd = StackLoopLabels.Pop();
+                elseBodyStream = _stackOutputStreams.Pop();     
+                labelEnd = _stackLoopLabels.Pop();
             }
 
-            var labelFalse = StackLoopLabels.Pop();
-            var labelTrue = StackLoopLabels.Pop();
+            var labelFalse = _stackLoopLabels.Pop();
+            var labelTrue = _stackLoopLabels.Pop();
 
-            var bodyStream = StackOutputStreams.Pop();
-            var condStream = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var bodyStream = _stackOutputStreams.Pop();
+            var condStream = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var conditionVar = StringValues.Get(context.GetChild(1));
+            var conditionVar = _stringValues.Get(context.GetChild(1));
 
             ps.WriteLine("");
             condStream.Seek(0, SeekOrigin.Begin);
@@ -594,26 +603,26 @@ namespace RubyCompiler.rubyAntlrCompiler
                 ps.WriteLine("label_" + labelFalse + ":");
             }
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterWhile_statement(RubyParser.While_statementContext context)
         {
-            StackLoopLabels.Push(++NumLabel);
-            StackLoopLabels.Push(++NumLabel);
+            _stackLoopLabels.Push(++_numLabel);
+            _stackLoopLabels.Push(++_numLabel);
         }
 
         public override void ExitWhile_statement(RubyParser.While_statementContext context)
         {
-            var body = StackOutputStreams.Pop();
-            var cond = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var body = _stackOutputStreams.Pop();
+            var cond = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var labelEnd = StackLoopLabels.Pop();
-            var labelBegin = StackLoopLabels.Pop();
+            var labelEnd = _stackLoopLabels.Pop();
+            var labelBegin = _stackLoopLabels.Pop();
 
-            var conditionVar = StringValues.Get(context.GetChild(1));
+            var conditionVar = _stringValues.Get(context.GetChild(1));
             ps.WriteLine("label_" + labelBegin + ":");
             cond.Seek(0, SeekOrigin.Begin);
             ps.WriteLine(new StreamReader(cond).ReadToEnd());
@@ -623,32 +632,32 @@ namespace RubyCompiler.rubyAntlrCompiler
             ps.WriteLine("goto label_" + labelBegin);
             ps.WriteLine("label_" + labelEnd + ":");
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterFor_statement(RubyParser.For_statementContext context)
         {
-            StackLoopLabels.Push(++NumLabel);
-            StackLoopLabels.Push(++NumLabel);
+            _stackLoopLabels.Push(++_numLabel);
+            _stackLoopLabels.Push(++_numLabel);
         }
 
         public override void ExitFor_statement(RubyParser.For_statementContext context)
         {
-            var temp4 = StackOutputStreams.Pop();
-            var temp3 = StackOutputStreams.Pop();
-            var temp2 = StackOutputStreams.Pop();
-            var temp1 = StackOutputStreams.Pop();
-            var outStream = StackOutputStreams.Pop();
+            var temp4 = _stackOutputStreams.Pop();
+            var temp3 = _stackOutputStreams.Pop();
+            var temp2 = _stackOutputStreams.Pop();
+            var temp1 = _stackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var labelEnd = StackLoopLabels.Pop();
-            var labelBegin = StackLoopLabels.Pop();
+            var labelEnd = _stackLoopLabels.Pop();
+            var labelBegin = _stackLoopLabels.Pop();
 
             if (context.ChildCount == 11) 
             {
                 temp1.Seek(0, SeekOrigin.Begin);
                 ps.WriteLine(new StreamReader(temp1).ReadToEnd());
-                var cond = StringValues.Get(context.GetChild(4));
+                var cond = _stringValues.Get(context.GetChild(4));
                 ps.WriteLine("label_" + labelBegin + ":");
                 temp2.Seek(0, SeekOrigin.Begin);
                 ps.WriteLine(new StreamReader(temp2).ReadToEnd());
@@ -664,7 +673,7 @@ namespace RubyCompiler.rubyAntlrCompiler
             {
                 temp1.Seek(0, SeekOrigin.Begin);
                 ps.WriteLine(new StreamReader(temp1).ReadToEnd());
-                var cond = StringValues.Get(context.GetChild(3));
+                var cond = _stringValues.Get(context.GetChild(3));
                 ps.WriteLine("label_" + labelBegin + ":");
                 temp2.Seek(0, SeekOrigin.Begin);
                 ps.WriteLine(new StreamReader(temp2).ReadToEnd());
@@ -677,43 +686,43 @@ namespace RubyCompiler.rubyAntlrCompiler
                 ps.WriteLine("label_" + labelEnd + ":");
             }
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterInit_expression(RubyParser.Init_expressionContext context)
         {
             var temp1 = new MemoryStream();
-            StackOutputStreams.Push(temp1);
+            _stackOutputStreams.Push(temp1);
         }
 
         public override void EnterCond_expression(RubyParser.Cond_expressionContext context)
         {
             var temp2 = new MemoryStream();
-            StackOutputStreams.Push(temp2);
+            _stackOutputStreams.Push(temp2);
         }
 
         public override void ExitCond_expression(RubyParser.Cond_expressionContext context)
         {
-            StringValues.Put(context, StringValues.Get(context.GetChild(0)));
+            _stringValues.Put(context, _stringValues.Get(context.GetChild(0)));
         }
 
         public override void EnterLoop_expression(RubyParser.Loop_expressionContext context)
         {
             var temp3 = new MemoryStream();
-            StackOutputStreams.Push(temp3);
+            _stackOutputStreams.Push(temp3);
         }
 
         public override void EnterStatement_body(RubyParser.Statement_bodyContext context)
         {
             var temp4 = new MemoryStream();
-            StackOutputStreams.Push(temp4);
+            _stackOutputStreams.Push(temp4);
         }
 
         public override void EnterDynamic_assignment(RubyParser.Dynamic_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var definitions = StackDefinitions.Pop();
+            var definitions = _stackDefinitions.Pop();
 
             string variable;
             switch(context.op.Type)
@@ -726,40 +735,40 @@ namespace RubyCompiler.rubyAntlrCompiler
                         ps.WriteLine(".local pmc " + context.var_id.GetText());
                         ps.WriteLine(context.var_id.GetText() + "= new \"Integer\"");
                         definitions.AddLast(context.var_id.GetText());
-                        NumReg = 0;
+                        _numReg = 0;
                     }
                     break;
                 default:
                     variable = context.var_id.GetText();
                     if (!IsDefined(definitions, variable)) 
                     {
-                        PrintStreamError.WriteLine("line " + NumStr + " Error! Undefined variable " + variable + "!");
-                        SemanticErrorsNum++;
+                        _printStreamError.WriteLine("line " + _numStr + " Error! Undefined variable " + variable + "!");
+                        _semanticErrorsNum++;
                     }
                     break;
             }
 
-            StackOutputStreams.Push(outStream); 
-            StackDefinitions.Push(definitions);
+            _stackOutputStreams.Push(outStream); 
+            _stackDefinitions.Push(definitions);
         }
 
         public override void ExitDynamic_assignment(RubyParser.Dynamic_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var str = context.var_id.GetText() + " " + context.op.Text + " " + StringValues.Get(context.GetChild(2));
-            NumReg = 0;
+            var str = context.var_id.GetText() + " " + context.op.Text + " " + _stringValues.Get(context.GetChild(2));
+            _numReg = 0;
             ps.WriteLine(str);
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterInt_assignment(RubyParser.Int_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var definitions = StackDefinitions.Pop();
+            var definitions = _stackDefinitions.Pop();
 
             string variable;
             switch(context.op.Type)
@@ -778,32 +787,32 @@ namespace RubyCompiler.rubyAntlrCompiler
                     variable = context.var_id.GetText();
                     if (!IsDefined(definitions, variable)) 
                     {
-                        PrintStreamError.WriteLine("line " + NumStr + " Error! Undefined variable " + variable + "!");
-                        SemanticErrorsNum++;
+                        _printStreamError.WriteLine("line " + _numStr + " Error! Undefined variable " + variable + "!");
+                        _semanticErrorsNum++;
                     }
                     break;
             }
 
-            StackOutputStreams.Push(outStream); 
-            StackDefinitions.Push(definitions);
+            _stackOutputStreams.Push(outStream); 
+            _stackDefinitions.Push(definitions);
         }
 
         public override void ExitInt_assignment(RubyParser.Int_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var str = context.var_id.GetText() + " " + context.op.Text + " " + IntValues.Get(context.GetChild(2));
+            var str = context.var_id.GetText() + " " + context.op.Text + " " + _intValues.Get(context.GetChild(2));
             ps.WriteLine(str);
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterFloat_assignment(RubyParser.Float_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var definitions = StackDefinitions.Pop();
+            var definitions = _stackDefinitions.Pop();
 
             string variable;
             switch(context.op.Type)
@@ -822,32 +831,32 @@ namespace RubyCompiler.rubyAntlrCompiler
                     variable = context.var_id.GetText();
                     if (!IsDefined(definitions, variable))
                     {
-                        PrintStreamError.WriteLine("line " + NumStr + " Error! Undefined variable " + variable + "!");
-                        SemanticErrorsNum++;
+                        _printStreamError.WriteLine("line " + _numStr + " Error! Undefined variable " + variable + "!");
+                        _semanticErrorsNum++;
                     }
                     break;
             }
 
-            StackOutputStreams.Push(outStream);
-            StackDefinitions.Push(definitions);
+            _stackOutputStreams.Push(outStream);
+            _stackDefinitions.Push(definitions);
         }
 
         public override void ExitFloat_assignment(RubyParser.Float_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var str = context.var_id.GetText() + " " + context.op.Text + " " + FloatValues.Get(context.GetChild(2));
+            var str = context.var_id.GetText() + " " + context.op.Text + " " + _floatValues.Get(context.GetChild(2));
             ps.WriteLine(str);
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterString_assignment(RubyParser.String_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var definitions = StackDefinitions.Pop();
+            var definitions = _stackDefinitions.Pop();
 
             string variable;
             switch(context.op.Type) 
@@ -866,32 +875,32 @@ namespace RubyCompiler.rubyAntlrCompiler
                     variable = context.var_id.GetText();
                     if (!IsDefined(definitions, variable))
                     {
-                        PrintStreamError.WriteLine("line " + NumStr + " Error! Undefined variable " + variable + "!");
-                        SemanticErrorsNum++;
+                        _printStreamError.WriteLine("line " + _numStr + " Error! Undefined variable " + variable + "!");
+                        _semanticErrorsNum++;
                     }
                     break;
             }
 
-            StackOutputStreams.Push(outStream);
-            StackDefinitions.Push(definitions);
+            _stackOutputStreams.Push(outStream);
+            _stackDefinitions.Push(definitions);
         }
 
         public override void ExitString_assignment(RubyParser.String_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var str = context.var_id.GetText() + " " + context.op.Text + " \"" + StringValues.Get(context.GetChild(2)) + "\"";
+            var str = context.var_id.GetText() + " " + context.op.Text + " \"" + _stringValues.Get(context.GetChild(2)) + "\"";
             ps.WriteLine(str);
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void EnterInitial_array_assignment(RubyParser.Initial_array_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var definitions = StackDefinitions.Pop();
+            var definitions = _stackDefinitions.Pop();
 
             var variable = context.var_id.GetText();
 
@@ -902,66 +911,66 @@ namespace RubyCompiler.rubyAntlrCompiler
             }
             ps.WriteLine(variable + " = new \"ResizablePMCArray\"");
 
-            StackOutputStreams.Push(outStream);
-            StackDefinitions.Push(definitions);
+            _stackOutputStreams.Push(outStream);
+            _stackDefinitions.Push(definitions);
         }
         
         public override void ExitArray_assignment(RubyParser.Array_assignmentContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var definitions = StackDefinitions.Pop();
-            var arrDef = StringValues.Get(context.GetChild(0));
+            var definitions = _stackDefinitions.Pop();
+            var arrDef = _stringValues.Get(context.GetChild(0));
 
-            var typeArg = WhichValues.Get(context.GetChild(2));
+            var typeArg = _whichValues.Get(context.GetChild(2));
 
             switch(typeArg)
             {
                 case "Integer":
-                    var resultInt = IntValues.Get(context.GetChild(2));
+                    var resultInt = _intValues.Get(context.GetChild(2));
                     ps.WriteLine(arrDef + " = " + resultInt);
                     break;
                 case "Float":
-                    var resultFloat = FloatValues.Get(context.GetChild(2));
+                    var resultFloat = _floatValues.Get(context.GetChild(2));
                     ps.WriteLine(arrDef + " = " + resultFloat.ToString(CultureInfo));
                     break;
                 case "String":
-                    var resultString = StringValues.Get(context.GetChild(2));
+                    var resultString = _stringValues.Get(context.GetChild(2));
                     ps.WriteLine(arrDef + " = " + resultString);
                     break;
                 case "Dynamic":
-                    var resultDynamic = StringValues.Get(context.GetChild(2));
+                    var resultDynamic = _stringValues.Get(context.GetChild(2));
                     ps.WriteLine(arrDef + " = " + resultDynamic);
                     break;
             }
 
-            StackOutputStreams.Push(outStream);
-            StackDefinitions.Push(definitions);
+            _stackOutputStreams.Push(outStream);
+            _stackDefinitions.Push(definitions);
         }
 
         public override void ExitArray_selector(RubyParser.Array_selectorContext context)
         {
-            var name = StringValues.Get(context.GetChild(0));
-            var typeArg = WhichValues.Get(context.GetChild(2));
+            var name = _stringValues.Get(context.GetChild(0));
+            var typeArg = _whichValues.Get(context.GetChild(2));
 
             switch(typeArg)
             {
                 case "Integer":
-                    var selectorInt = IntValues.Get(context.GetChild(2));
-                    StringValues.Put(context, name + "[" + selectorInt + "]");
+                    var selectorInt = _intValues.Get(context.GetChild(2));
+                    _stringValues.Put(context, name + "[" + selectorInt + "]");
                     break;
                 case "Dynamic":
-                    var selectorStr = StringValues.Get(context.GetChild(2));
-                    StringValues.Put(context, name + "[" + selectorStr + "]");
+                    var selectorStr = _stringValues.Get(context.GetChild(2));
+                    _stringValues.Put(context, name + "[" + selectorStr + "]");
                     break;
             }
 
-            WhichValues.Put(context, "Dynamic");
+            _whichValues.Put(context, "Dynamic");
         }
 
         public override void ExitDynamic_result(RubyParser.Dynamic_resultContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             if ( context.ChildCount == 3 && context.op != null ) 
@@ -974,122 +983,122 @@ namespace RubyCompiler.rubyAntlrCompiler
                 var anotherNode = "";
                 var strOutput = "";
 
-                switch(WhichValues.Get(context.GetChild(0)))
+                switch(_whichValues.Get(context.GetChild(0)))
                 {
                     case "Integer":
-                        intDyn = IntValues.Get(context.GetChild(0));
-                        anotherNode = StringValues.Get(context.GetChild(2));
-                        strOutput = "$P" + NumReg + " = " + anotherNode + " " + context.op.Text + " " + intDyn;                  
+                        intDyn = _intValues.Get(context.GetChild(0));
+                        anotherNode = _stringValues.Get(context.GetChild(2));
+                        strOutput = "$P" + _numReg + " = " + anotherNode + " " + context.op.Text + " " + intDyn;                  
                         break;
                     case "Float":
-                        floatDyn = FloatValues.Get(context.GetChild(0));
-                        anotherNode = StringValues.Get(context.GetChild(2));
-                        strOutput = "$P" + NumReg + " = " + anotherNode + " " + context.op.Text + " " + floatDyn;
+                        floatDyn = _floatValues.Get(context.GetChild(0));
+                        anotherNode = _stringValues.Get(context.GetChild(2));
+                        strOutput = "$P" + _numReg + " = " + anotherNode + " " + context.op.Text + " " + floatDyn;
                         break;
                     case "String":
-                        strDyn = StringValues.Get(context.GetChild(0));
-                        anotherNode = StringValues.Get(context.GetChild(2));
-                        strOutput = "$P" + NumReg + " = " + anotherNode + " " + context.op.Text + " " + strDyn;
+                        strDyn = _stringValues.Get(context.GetChild(0));
+                        anotherNode = _stringValues.Get(context.GetChild(2));
+                        strOutput = "$P" + _numReg + " = " + anotherNode + " " + context.op.Text + " " + strDyn;
                         break;
                     case "Dynamic":
-                        strDyn1 = StringValues.Get(context.GetChild(0));
-                        switch(WhichValues.Get(context.GetChild(2)))
+                        strDyn1 = _stringValues.Get(context.GetChild(0));
+                        switch(_whichValues.Get(context.GetChild(2)))
                         {
                             case "Integer":
-                                intDyn = IntValues.Get(context.GetChild(2));
-                                strOutput = "$P" + NumReg + " = " + strDyn1 + " " + context.op.Text + " " + intDyn;                  
+                                intDyn = _intValues.Get(context.GetChild(2));
+                                strOutput = "$P" + _numReg + " = " + strDyn1 + " " + context.op.Text + " " + intDyn;                  
                                 break;
                             case "Float":
-                                floatDyn = FloatValues.Get(context.GetChild(2));
-                                strOutput = "$P" + NumReg + " = " + strDyn1 + " " + context.op.Text + " " + floatDyn;
+                                floatDyn = _floatValues.Get(context.GetChild(2));
+                                strOutput = "$P" + _numReg + " = " + strDyn1 + " " + context.op.Text + " " + floatDyn;
                                 break;
                             case "String":
-                                strDyn = StringValues.Get(context.GetChild(2));
-                                strOutput = "$P" + NumReg + " = " + strDyn1 + " " + context.op.Text + " " + strDyn;
+                                strDyn = _stringValues.Get(context.GetChild(2));
+                                strOutput = "$P" + _numReg + " = " + strDyn1 + " " + context.op.Text + " " + strDyn;
                                 break;
                             case "Dynamic":
-                                strDyn = StringValues.Get(context.GetChild(2));
-                                strOutput = "$P" + NumReg + " = " + strDyn1 + " " + context.op.Text + " " + strDyn;
+                                strDyn = _stringValues.Get(context.GetChild(2));
+                                strOutput = "$P" + _numReg + " = " + strDyn1 + " " + context.op.Text + " " + strDyn;
                                 break;
                         }
                         break;
                 }
 
-                ps.WriteLine("$P" + NumReg + " = new \"Integer\"");
+                ps.WriteLine("$P" + _numReg + " = new \"Integer\"");
                 ps.WriteLine(strOutput);
-                StringValues.Put(context, "$P" + NumReg);
-                WhichValues.Put(context, "Dynamic");
-                NumReg++;
+                _stringValues.Put(context, "$P" + _numReg);
+                _whichValues.Put(context, "Dynamic");
+                _numReg++;
             }
             else if ( context.ChildCount == 1 )
             { 
-                StringValues.Put(context, StringValues.Get(context.GetChild(0)));
-                WhichValues.Put(context, "Dynamic");
+                _stringValues.Put(context, _stringValues.Get(context.GetChild(0)));
+                _whichValues.Put(context, "Dynamic");
             }
             else if ( context.ChildCount == 3 && context.op == null )
             { 
-                StringValues.Put(context, StringValues.Get(context.GetChild(1)));
-                WhichValues.Put(context, "Dynamic");
+                _stringValues.Put(context, _stringValues.Get(context.GetChild(1)));
+                _whichValues.Put(context, "Dynamic");
             }
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitDynamic(RubyParser.DynamicContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var strDynTerm = StringValues.Get(context.GetChild(0));
-            ps.WriteLine("$P" + NumReg + " = new \"Integer\"");
-            ps.WriteLine("$P" + NumReg + " = " + strDynTerm);
-            StringValues.Put(context, "$P" + NumReg);
-            NumReg++;
-            WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
+            var strDynTerm = _stringValues.Get(context.GetChild(0));
+            ps.WriteLine("$P" + _numReg + " = new \"Integer\"");
+            ps.WriteLine("$P" + _numReg + " = " + strDynTerm);
+            _stringValues.Put(context, "$P" + _numReg);
+            _numReg++;
+            _whichValues.Put(context, _whichValues.Get(context.GetChild(0)));
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitInt_result(RubyParser.Int_resultContext context)
         {
             if ( context.ChildCount == 3 && context.op != null )
             { 
-                var left = IntValues.Get(context.GetChild(0));
-                var right = IntValues.Get(context.GetChild(2));
+                var left = _intValues.Get(context.GetChild(0));
+                var right = _intValues.Get(context.GetChild(2));
 
                 switch(context.op.Type) 
                 {
                     case RubyParser.MUL:
-                        IntValues.Put(context, left * right);
-                        WhichValues.Put(context, "Integer");
+                        _intValues.Put(context, left * right);
+                        _whichValues.Put(context, "Integer");
                         break;
                     case RubyParser.DIV:
-                        IntValues.Put(context, left / right);
-                        WhichValues.Put(context, "Integer");
+                        _intValues.Put(context, left / right);
+                        _whichValues.Put(context, "Integer");
                         break;
                     case RubyParser.MOD:
-                        IntValues.Put(context, left % right);
-                        WhichValues.Put(context, "Integer");
+                        _intValues.Put(context, left % right);
+                        _whichValues.Put(context, "Integer");
                         break;
                     case RubyParser.PLUS:
-                        IntValues.Put(context, left + right);
-                        WhichValues.Put(context, "Integer");
+                        _intValues.Put(context, left + right);
+                        _whichValues.Put(context, "Integer");
                         break;
                     case RubyParser.MINUS:
-                        IntValues.Put(context, left - right);
-                        WhichValues.Put(context, "Integer");
+                        _intValues.Put(context, left - right);
+                        _whichValues.Put(context, "Integer");
                         break;
                 }
             }
             else if ( context.ChildCount == 1 )
             { 
-                IntValues.Put(context, IntValues.Get(context.GetChild(0)));
-                WhichValues.Put(context,  "Integer");
+                _intValues.Put(context, _intValues.Get(context.GetChild(0)));
+                _whichValues.Put(context,  "Integer");
             }
             else if ( context.ChildCount == 3 && context.op == null ) 
             { 
-                IntValues.Put(context, IntValues.Get(context.GetChild(1)));
-                WhichValues.Put(context, "Integer");
+                _intValues.Put(context, _intValues.Get(context.GetChild(1)));
+                _whichValues.Put(context, "Integer");
             }
         }
 
@@ -1100,57 +1109,57 @@ namespace RubyCompiler.rubyAntlrCompiler
                 float left = 0;
                 float right = 0;
 
-                switch(WhichValues.Get(context.GetChild(0))) {
+                switch(_whichValues.Get(context.GetChild(0))) {
                     case "Integer":
-                        left = (float) IntValues.Get(context.GetChild(0));
+                        left = (float) _intValues.Get(context.GetChild(0));
                         break;
                     case "Float":
-                        left = FloatValues.Get(context.GetChild(0));
+                        left = _floatValues.Get(context.GetChild(0));
                         break;
                 }
 
-                switch(WhichValues.Get(context.GetChild(2))) {
+                switch(_whichValues.Get(context.GetChild(2))) {
                     case "Integer":
-                        right = (float) IntValues.Get(context.GetChild(2));
+                        right = (float) _intValues.Get(context.GetChild(2));
                         break;
                     case "Float":
-                        right = FloatValues.Get(context.GetChild(2));
+                        right = _floatValues.Get(context.GetChild(2));
                         break;
                 }
 
                 switch(context.op.Type) 
                 {
                     case RubyParser.MUL:
-                        FloatValues.Put(context, left * right);
-                        WhichValues.Put(context, "Float");
+                        _floatValues.Put(context, left * right);
+                        _whichValues.Put(context, "Float");
                         break;
                     case RubyParser.DIV:
-                        FloatValues.Put(context, left / right);
-                        WhichValues.Put(context, "Float");
+                        _floatValues.Put(context, left / right);
+                        _whichValues.Put(context, "Float");
                         break;
                     case RubyParser.MOD:
-                        FloatValues.Put(context, left % right);
-                        WhichValues.Put(context, "Float");
+                        _floatValues.Put(context, left % right);
+                        _whichValues.Put(context, "Float");
                         break;
                     case RubyParser.PLUS:
-                        FloatValues.Put(context, left + right);
-                        WhichValues.Put(context, "Float");
+                        _floatValues.Put(context, left + right);
+                        _whichValues.Put(context, "Float");
                         break;
                     case RubyParser.MINUS:
-                        FloatValues.Put(context, left - right);
-                        WhichValues.Put(context, "Float");
+                        _floatValues.Put(context, left - right);
+                        _whichValues.Put(context, "Float");
                         break;
                 }
             }
             else if ( context.ChildCount == 1 ) 
             { 
-                FloatValues.Put(context, FloatValues.Get(context.GetChild(0)));
-                WhichValues.Put(context, "Float");
+                _floatValues.Put(context, _floatValues.Get(context.GetChild(0)));
+                _whichValues.Put(context, "Float");
             }
             else if ( context.ChildCount == 3 && context.op == null )
             { 
-                FloatValues.Put(context, FloatValues.Get(context.GetChild(1)));
-                WhichValues.Put(context, "Float");
+                _floatValues.Put(context, _floatValues.Get(context.GetChild(1)));
+                _whichValues.Put(context, "Float");
             }
         }
 
@@ -1164,24 +1173,24 @@ namespace RubyCompiler.rubyAntlrCompiler
                 var rightS = "";
                 var str = "";
 
-                switch(WhichValues.Get(context.GetChild(0))) 
+                switch(_whichValues.Get(context.GetChild(0))) 
                 {
                     case "Integer":
-                        times = IntValues.Get(context.GetChild(0));
+                        times = _intValues.Get(context.GetChild(0));
                         break;
                     case "String":
-                        leftS = StringValues.Get(context.GetChild(0));
+                        leftS = _stringValues.Get(context.GetChild(0));
                         str = leftS;
                         break;
                 }
 
-                switch(WhichValues.Get(context.GetChild(2))) 
+                switch(_whichValues.Get(context.GetChild(2))) 
                 {
                     case "Integer":
-                        times = IntValues.Get(context.GetChild(2));
+                        times = _intValues.Get(context.GetChild(2));
                         break;
                     case "String":
-                        rightS = StringValues.Get(context.GetChild(2));
+                        rightS = _stringValues.Get(context.GetChild(2));
                         str = rightS;
                         break;
                 }
@@ -1189,182 +1198,182 @@ namespace RubyCompiler.rubyAntlrCompiler
                 switch(context.op.Type)
                 {
                     case RubyParser.MUL:
-                        StringValues.Put(context,Repeat(str, times));
-                        WhichValues.Put(context, "String");
+                        _stringValues.Put(context,Repeat(str, times));
+                        _whichValues.Put(context, "String");
                         break;
                     case RubyParser.PLUS:
-                        StringValues.Put(context,  leftS + rightS);
-                        WhichValues.Put(context, "String");
+                        _stringValues.Put(context,  leftS + rightS);
+                        _whichValues.Put(context, "String");
                         break;
                 }
             }
             else if ( context.ChildCount == 1 )
             { 
-                StringValues.Put(context, StringValues.Get(context.GetChild(0)));
-                WhichValues.Put(context, "String");
+                _stringValues.Put(context, _stringValues.Get(context.GetChild(0)));
+                _whichValues.Put(context, "String");
             }
             else if ( context.ChildCount == 3 && context.op == null )
             { 
-                StringValues.Put(context, StringValues.Get(context.GetChild(1)));
-                WhichValues.Put(context, "String");
+                _stringValues.Put(context, _stringValues.Get(context.GetChild(1)));
+                _whichValues.Put(context, "String");
             }
         }
 
         public override void ExitComparison_list(RubyParser.Comparison_listContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
             if ( context.ChildCount == 3 && context.op != null ) 
             {
-                var left = StringValues.Get(context.GetChild(0));
-                var right = StringValues.Get(context.GetChild(2));     
+                var left = _stringValues.Get(context.GetChild(0));
+                var right = _stringValues.Get(context.GetChild(2));     
 
                 switch(context.op.Type) {
                     case RubyParser.BIT_AND:
-                        ps.WriteLine("$I" + NumRegInt + " = " + left + " && " + right);
+                        ps.WriteLine("$I" + _numRegInt + " = " + left + " && " + right);
                         break;
                     case RubyParser.AND:
-                        ps.WriteLine("$I" + NumRegInt + " = " + left + " && " + right);
+                        ps.WriteLine("$I" + _numRegInt + " = " + left + " && " + right);
                         break;
                     case RubyParser.BIT_OR:
-                        ps.WriteLine("$I" + NumRegInt + " = " + left + " || " + right);
+                        ps.WriteLine("$I" + _numRegInt + " = " + left + " || " + right);
                         break;
                     case RubyParser.OR:
-                        ps.WriteLine("$I" + NumRegInt + " = " + left + " || " + right);
+                        ps.WriteLine("$I" + _numRegInt + " = " + left + " || " + right);
                         break;
                 }
 
-                StringValues.Put(context, "$I" + NumRegInt);
-                NumRegInt++;
+                _stringValues.Put(context, "$I" + _numRegInt);
+                _numRegInt++;
             }
             else if ( context.ChildCount == 3 && context.op == null )
             {
-                StringValues.Put(context, StringValues.Get(context.GetChild(1)));
+                _stringValues.Put(context, _stringValues.Get(context.GetChild(1)));
             }
             else if ( context.ChildCount == 1 ) 
             {
-                StringValues.Put(context, StringValues.Get(context.GetChild(0)));
+                _stringValues.Put(context, _stringValues.Get(context.GetChild(0)));
             }
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitComparison(RubyParser.ComparisonContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var left = StringValues.Get(context.GetChild(0));
-            var right = StringValues.Get(context.GetChild(2));
+            var left = _stringValues.Get(context.GetChild(0));
+            var right = _stringValues.Get(context.GetChild(2));
 
             switch(context.op.Type) 
             {
                 case RubyParser.LESS:
-                    ps.WriteLine("$I" + NumRegInt + " = islt " + left + ", " + right);
+                    ps.WriteLine("$I" + _numRegInt + " = islt " + left + ", " + right);
                     break;
                 case RubyParser.GREATER:
-                    ps.WriteLine("$I" + NumRegInt + " = isgt " + left + ", " + right);
+                    ps.WriteLine("$I" + _numRegInt + " = isgt " + left + ", " + right);
                     break;
                 case RubyParser.LESS_EQUAL:
-                    ps.WriteLine("$I" + NumRegInt + " = isle " + left + ", " + right);
+                    ps.WriteLine("$I" + _numRegInt + " = isle " + left + ", " + right);
                     break;
                 case RubyParser.GREATER_EQUAL:
-                    ps.WriteLine("$I" + NumRegInt + " = isge " + left + ", " + right);
+                    ps.WriteLine("$I" + _numRegInt + " = isge " + left + ", " + right);
                     break;
                 case RubyParser.EQUAL:
-                    ps.WriteLine("$I" + NumRegInt + " = iseq " + left + ", " + right);
+                    ps.WriteLine("$I" + _numRegInt + " = iseq " + left + ", " + right);
                     break;
                 case RubyParser.NOT_EQUAL:
-                    var temp = "\n$I" + NumRegInt + " = not " + "$I" + NumRegInt;
-                    ps.WriteLine("$I" + NumRegInt + " = iseq " + left + ", " + right + temp);
+                    var temp = "\n$I" + _numRegInt + " = not " + "$I" + _numRegInt;
+                    ps.WriteLine("$I" + _numRegInt + " = iseq " + left + ", " + right + temp);
                     
                     break;
             }
-            StringValues.Put(context, "$I" + NumRegInt);
-            NumRegInt++;
+            _stringValues.Put(context, "$I" + _numRegInt);
+            _numRegInt++;
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitComp_var(RubyParser.Comp_varContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
 
-            var typeArg = WhichValues.Get(context.GetChild(0));
+            var typeArg = _whichValues.Get(context.GetChild(0));
             var strOutput = "";
             
             switch(typeArg) 
             {
                 case "Integer":
-                    var resultInt = IntValues.Get(context.GetChild(0));
-                    strOutput = "$P" + NumReg + " = " + resultInt;
+                    var resultInt = _intValues.Get(context.GetChild(0));
+                    strOutput = "$P" + _numReg + " = " + resultInt;
                     break;
                 case "Float":
-                    var resultFloat = FloatValues.Get(context.GetChild(0));
-                    strOutput = "$P" + NumReg + " = " + resultFloat.ToString(CultureInfo);
+                    var resultFloat = _floatValues.Get(context.GetChild(0));
+                    strOutput = "$P" + _numReg + " = " + resultFloat.ToString(CultureInfo);
                     break;
                 case "String":
-                    var resultString = StringValues.Get(context.GetChild(0));
-                    strOutput = "$P" + NumReg + " = " + resultString;
+                    var resultString = _stringValues.Get(context.GetChild(0));
+                    strOutput = "$P" + _numReg + " = " + resultString;
                     break;
                 case "Dynamic":
-                    var resultDynamic = StringValues.Get(context.GetChild(0));
-                    StringValues.Put(context, resultDynamic);
-                    WhichValues.Put(context, typeArg);
-                    StackOutputStreams.Push(outStream);
+                    var resultDynamic = _stringValues.Get(context.GetChild(0));
+                    _stringValues.Put(context, resultDynamic);
+                    _whichValues.Put(context, typeArg);
+                    _stackOutputStreams.Push(outStream);
                     return;
             }
 
-            ps.WriteLine("$P" + NumReg + " = new \"Integer\"");
+            ps.WriteLine("$P" + _numReg + " = new \"Integer\"");
             ps.WriteLine(strOutput);
-            StringValues.Put(context, "$P" + NumReg);
-            WhichValues.Put(context, "Dynamic");
-            NumReg++;
+            _stringValues.Put(context, "$P" + _numReg);
+            _whichValues.Put(context, "Dynamic");
+            _numReg++;
 
-            StackOutputStreams.Push(outStream);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitBreak_expression(RubyParser.Break_expressionContext context)
         {
-            var outStream = StackOutputStreams.Pop();
+            var outStream = _stackOutputStreams.Pop();
             var ps = new StreamWriter(outStream) {AutoFlush = true};
-            var labelEndCurrentLoop = StackLoopLabels.Pop();
+            var labelEndCurrentLoop = _stackLoopLabels.Pop();
 
             ps.WriteLine("goto label_" + labelEndCurrentLoop);
 
-            StackLoopLabels.Push(labelEndCurrentLoop);
-            StackOutputStreams.Push(outStream);
+            _stackLoopLabels.Push(labelEndCurrentLoop);
+            _stackOutputStreams.Push(outStream);
         }
 
         public override void ExitLiteral_t(RubyParser.Literal_tContext context)
         {
-            StringValues.Put(context, StringValues.Get(context.GetChild(0)));
-            WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
+            _stringValues.Put(context, _stringValues.Get(context.GetChild(0)));
+            _whichValues.Put(context, _whichValues.Get(context.GetChild(0)));
         }
 
         public override void ExitFloat_t(RubyParser.Float_tContext context)
         {
-            FloatValues.Put(context, FloatValues.Get(context.GetChild(0)));
-            WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
+            _floatValues.Put(context, _floatValues.Get(context.GetChild(0)));
+            _whichValues.Put(context, _whichValues.Get(context.GetChild(0)));
         }
 
         public override void ExitInt_t(RubyParser.Int_tContext context)
         {
-            IntValues.Put(context, IntValues.Get(context.GetChild(0)));
-            WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
+            _intValues.Put(context, _intValues.Get(context.GetChild(0)));
+            _whichValues.Put(context, _whichValues.Get(context.GetChild(0)));
         }
 
         public override void ExitId(RubyParser.IdContext context)
         {
-            StringValues.Put(context, StringValues.Get(context.GetChild(0)));
-            WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
+            _stringValues.Put(context, _stringValues.Get(context.GetChild(0)));
+            _whichValues.Put(context, _whichValues.Get(context.GetChild(0)));
         }
 
         public override void ExitCrlf(RubyParser.CrlfContext context)
         {
-            NumStr++;
+            _numStr++;
         }
 
         public override void VisitTerminal(ITerminalNode node)
@@ -1373,12 +1382,12 @@ namespace RubyCompiler.rubyAntlrCompiler
             switch(symbol.Type) 
             {
                 case RubyParser.INT:
-                    IntValues.Put(node, int.Parse(symbol.Text));
-                    WhichValues.Put(node, "Integer");
+                    _intValues.Put(node, int.Parse(symbol.Text));
+                    _whichValues.Put(node, "Integer");
                     break;
                 case RubyParser.FLOAT:
-                    FloatValues.Put(node, float.Parse(symbol.Text, NumberStyles.Any, CultureInfo));
-                    WhichValues.Put(node, "Float");
+                    _floatValues.Put(node, float.Parse(symbol.Text, NumberStyles.Any, CultureInfo));
+                    _whichValues.Put(node, "Float");
                     break;
                 case RubyParser.LITERAL:
                     var strTerminal = symbol.Text;
@@ -1386,13 +1395,13 @@ namespace RubyCompiler.rubyAntlrCompiler
                     strTerminal = Regex.Replace(strTerminal, "^\"", "");
                     strTerminal = Regex.Replace(strTerminal, "\'$", "");
                     strTerminal = Regex.Replace(strTerminal, "^\'", "");
-                    StringValues.Put(node, strTerminal);
-                    WhichValues.Put(node, "String");
+                    _stringValues.Put(node, strTerminal);
+                    _whichValues.Put(node, "String");
                     break;
                 case RubyParser.ID:
                     var dynamicTerminal = symbol.Text;
-                    StringValues.Put(node, dynamicTerminal);
-                    WhichValues.Put(node, "Dynamic");
+                    _stringValues.Put(node, dynamicTerminal);
+                    _whichValues.Put(node, "Dynamic");
                     break;
             }
         }

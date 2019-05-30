@@ -9,13 +9,22 @@ namespace RubyCompiler
     {
         static void Main(string[] args)
         {
-            var compiler = new Compiler();
-            string source = File.ReadAllText( Path.Combine(Environment.CurrentDirectory,  @"samples/num.rb"), Encoding.UTF8);
-            compiler.Compile("aaa", source);
-            /**foreach (var compilerToken in compiler.Tokens)
+            try
             {
-                Console.WriteLine(compilerToken);
-            }**/
+                var compiler = new Compiler();
+                var path = Path.Combine(Environment.CurrentDirectory, @"samples/num.rb");
+                string source = File.ReadAllText( path, Encoding.UTF8);
+                compiler.Compile(Path.GetFileNameWithoutExtension(path), source);
+                /**foreach (var compilerToken in compiler.Tokens)
+                {
+                    Console.WriteLine(compilerToken);
+                }**/
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+            
         }
     }
 }
