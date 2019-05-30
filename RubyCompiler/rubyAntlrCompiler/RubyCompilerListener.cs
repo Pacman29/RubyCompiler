@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -1736,7 +1737,7 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitCrlf(RubyParser.CrlfContext context)
         {
-            base.ExitCrlf(context);
+            NumStr++;
         }
 
         public override void EnterEveryRule(ParserRuleContext context)
@@ -1751,7 +1752,32 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void VisitTerminal(ITerminalNode node)
         {
-            base.VisitTerminal(node);
+            var symbol = node.Symbol;
+            switch(symbol.Type) 
+            {
+                case RubyParser.INT:
+                    IntValues.Put(node, int.Parse(symbol.Text));
+                    WhichValues.Put(node, "Integer");
+                    break;
+                case RubyParser.FLOAT:
+                    FloatValues.Put(node, float.Parse(symbol.Text));
+                    WhichValues.Put(node, "Float");
+                    break;
+                case RubyParser.LITERAL:
+                    var strTerminal = symbol.Text;
+                    strTerminal = strTerminal.Replace("\"$", "");
+                    strTerminal = strTerminal.Replace("^\"", "");
+                    strTerminal = strTerminal.Replace("\'$", "");
+                    strTerminal = strTerminal.Replace("^\'", "");
+                    StringValues.Put(node, strTerminal);
+                    WhichValues.Put(node, "String");
+                    break;
+                case RubyParser.ID:
+                    var dynamicTerminal = symbol.Text;
+                    StringValues.Put(node, dynamicTerminal);
+                    WhichValues.Put(node, "Dynamic");
+                    break;
+            }
         }
 
         public override void VisitErrorNode(IErrorNode node)
