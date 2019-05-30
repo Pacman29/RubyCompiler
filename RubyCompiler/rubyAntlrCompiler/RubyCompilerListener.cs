@@ -390,32 +390,175 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterIf_elsif_statement(RubyParser.If_elsif_statementContext context)
         {
-            base.EnterIf_elsif_statement(context);
+            var elsifStream = new MemoryStream();
+            var labelEnd = 0;
+            var childCount = context.ChildCount;
+
+            if (childCount > 4)
+            {
+                labelEnd = StackLoopLabels.Pop();
+                StackLoopLabels.Push(labelEnd);     
+            }
+
+            StackLoopLabels.Push(++NumLabel);
+            StackLoopLabels.Push(++NumLabel);
+
+            if (childCount > 4)
+                StackLoopLabels.Push(labelEnd);
+
+            StackOutputStreams.Push(elsifStream);
         }
 
         public override void ExitIf_elsif_statement(RubyParser.If_elsif_statementContext context)
         {
-            base.ExitIf_elsif_statement(context);
+            var elseBodyStream = new MemoryStream();
+            var labelEnd = 0;
+            var childCount = context.ChildCount;
+
+            if (childCount > 4) {
+                elseBodyStream = StackOutputStreams.Pop();   
+                labelEnd = StackLoopLabels.Pop();  
+            }
+
+            var bodyStream = StackOutputStreams.Pop();
+            var condStream = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            var conditionVar = StringValues.Get(context.GetChild(1));
+
+            var labelFalse = StackLoopLabels.Pop();
+            var labelTrue = StackLoopLabels.Pop();
+
+            ps.WriteLine("");
+            condStream.CopyTo(outStream);
+            ps.WriteLine("if " + conditionVar + " goto label_" + labelTrue);
+            ps.WriteLine("goto label_" + labelFalse);
+            ps.WriteLine("label_" + labelTrue + ":");
+
+            bodyStream.CopyTo(outStream);
+
+            if (childCount > 4) 
+            {
+                ps.WriteLine("goto label_" + labelEnd);
+                ps.WriteLine("label_" + labelFalse + ":");
+                elseBodyStream.CopyTo(outStream);
+            }
+            else 
+            {
+                ps.WriteLine("label_" + labelFalse + ":");
+            }
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterIf_statement(RubyParser.If_statementContext context)
         {
-            base.EnterIf_statement(context);
+            StackLoopLabels.Push(++NumLabel);
+            StackLoopLabels.Push(++NumLabel);
+
+            var child = context.GetChild(4).GetText();
+
+            if (child.Equals("else") || child.Equals("elsif"))
+                StackLoopLabels.Push(++NumLabel);
         }
 
         public override void ExitIf_statement(RubyParser.If_statementContext context)
         {
-            base.ExitIf_statement(context);
+            var elseBodyStream = new MemoryStream();
+            var labelEnd = 0;
+            var child = context.GetChild(4).GetText();
+
+            if (child.Equals("else") || child.Equals("elsif"))
+            {
+                elseBodyStream = StackOutputStreams.Pop();     
+                labelEnd = StackLoopLabels.Pop();
+            }
+
+            var labelFalse = StackLoopLabels.Pop();
+            var labelTrue = StackLoopLabels.Pop();
+
+            var bodyStream = StackOutputStreams.Pop();
+            var condStream = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            var conditionVar = StringValues.Get(context.GetChild(1));
+
+            ps.WriteLine("");
+            condStream.CopyTo(outStream);
+            ps.WriteLine("if " + conditionVar + " goto label_" + labelTrue);
+            ps.WriteLine("goto label_" + labelFalse);
+            ps.WriteLine("label_" + labelTrue + ":");
+
+            bodyStream.CopyTo(outStream);
+
+            if (child.Equals("else") || child.Equals("elsif")) 
+            {
+                ps.WriteLine("goto label_" + labelEnd);
+                ps.WriteLine("label_" + labelFalse + ":");
+                elseBodyStream.CopyTo(outStream);
+                ps.WriteLine("label_" + labelEnd + ":");     
+            }
+            else 
+            {
+                ps.WriteLine("label_" + labelFalse + ":");
+            }
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterUnless_statement(RubyParser.Unless_statementContext context)
         {
-            base.EnterUnless_statement(context);
+            StackLoopLabels.Push(++NumLabel);
+            StackLoopLabels.Push(++NumLabel);
+
+            var child = context.GetChild(4).GetText();
+
+            if (child.Equals("else") || child.Equals("elsif"))
+                StackLoopLabels.Push(++NumLabel);
         }
 
         public override void ExitUnless_statement(RubyParser.Unless_statementContext context)
         {
-            base.ExitUnless_statement(context);
+            var elseBodyStream = new MemoryStream();
+            var labelEnd = 0;
+            var child = context.GetChild(4).GetText();
+
+            if (child.Equals("else") || child.Equals("elsif"))
+            {
+                elseBodyStream = StackOutputStreams.Pop();     
+                labelEnd = StackLoopLabels.Pop();
+            }
+
+            var labelFalse = StackLoopLabels.Pop();
+            var labelTrue = StackLoopLabels.Pop();
+
+            var bodyStream = StackOutputStreams.Pop();
+            var condStream = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            var conditionVar = StringValues.Get(context.GetChild(1));
+
+            ps.WriteLine("");
+            condStream.CopyTo(outStream);
+            ps.WriteLine("unless " + conditionVar + " goto label_" + labelTrue);
+            ps.WriteLine("goto label_" + labelFalse);
+            ps.WriteLine("label_" + labelTrue + ":");
+
+            bodyStream.CopyTo(outStream);
+
+            if (child.Equals("else") || child.Equals("elsif")) 
+            {
+                ps.WriteLine("goto label_" + labelEnd);
+                ps.WriteLine("label_" + labelFalse + ":");    
+                elseBodyStream.CopyTo(outStream);
+                ps.WriteLineAsync("label_" + labelEnd + ":");     
+            }
+            else 
+            {
+                ps.WriteLine("label_" + labelFalse + ":");
+            }
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterWhile_statement(RubyParser.While_statementContext context)
