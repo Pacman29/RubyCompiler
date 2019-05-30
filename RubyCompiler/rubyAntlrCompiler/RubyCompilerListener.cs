@@ -544,7 +544,8 @@ namespace RubyCompiler.rubyAntlrCompiler
             var definitions = StackDefinitions.Pop();
 
             string variable;
-            switch(context.op.Type) {
+            switch(context.op.Type)
+            {
                 case RubyParser.ASSIGN:
                     variable = context.var_id.GetText();
                     if (!IsDefined(definitions, variable)) 
@@ -591,7 +592,8 @@ namespace RubyCompiler.rubyAntlrCompiler
             {
                 case RubyParser.ASSIGN:
                     variable = context.var_id.GetText();
-                    if (!IsDefined(definitions, variable)) {
+                    if (!IsDefined(definitions, variable))
+                    {
                         ps.WriteLine("");
                         ps.WriteLine(".local pmc " + context.var_id.GetText());
                         ps.WriteLine(context.var_id.GetText() + "= new \"Double\"");
@@ -600,7 +602,8 @@ namespace RubyCompiler.rubyAntlrCompiler
                     break;
                 default:
                     variable = context.var_id.GetText();
-                    if (!IsDefined(definitions, variable)) {
+                    if (!IsDefined(definitions, variable))
+                    {
                         PrintStreamError.WriteLine("line " + NumStr + " Error! Undefined variable " + variable + "!");
                         SemanticErrorsNum++;
                     }
@@ -624,12 +627,46 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterString_assignment(RubyParser.String_assignmentContext context)
         {
-            base.EnterString_assignment(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            var definitions = StackDefinitions.Pop();
+
+            string variable;
+            switch(context.op.Type) 
+            {
+                case RubyParser.ASSIGN:
+                    variable = context.var_id.GetText();
+                    if (!IsDefined(definitions, variable))
+                    {
+                        ps.WriteLine("");
+                        ps.WriteLine(".local pmc " + context.var_id.GetText());
+                        ps.WriteLine(context.var_id.GetText() + "= new \"String\"");
+                        definitions.AddLast(context.var_id.GetText());
+                    }
+                    break;
+                default:
+                    variable = context.var_id.GetText();
+                    if (!IsDefined(definitions, variable))
+                    {
+                        PrintStreamError.WriteLine("line " + NumStr + " Error! Undefined variable " + variable + "!");
+                        SemanticErrorsNum++;
+                    }
+                    break;
+            }
+
+            StackOutputStreams.Push(outStream);
+            StackDefinitions.Push(definitions);
         }
 
         public override void ExitString_assignment(RubyParser.String_assignmentContext context)
         {
-            base.ExitString_assignment(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var str = context.var_id.GetText() + " " + context.op.Text + " \"" + StringValues.Get(context.GetChild(2)) + "\"";
+            ps.WriteLine(str);
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterInitial_array_assignment(RubyParser.Initial_array_assignmentContext context)
@@ -821,7 +858,58 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitString_result(RubyParser.String_resultContext context)
         {
-            base.ExitString_result(context);
+            if ( context.ChildCount == 3 && context.op != null )
+            { 
+
+                int times = 0;
+                var leftS = "";
+                var rightS = "";
+                var str = "";
+
+                switch(WhichValues.Get(context.GetChild(0))) 
+                {
+                    case "Integer":
+                        times = IntValues.Get(context.GetChild(0));
+                        break;
+                    case "String":
+                        leftS = StringValues.Get(context.GetChild(0));
+                        str = leftS;
+                        break;
+                }
+
+                switch(WhichValues.Get(context.GetChild(2))) 
+                {
+                    case "Integer":
+                        times = IntValues.Get(context.GetChild(2));
+                        break;
+                    case "String":
+                        rightS = StringValues.Get(context.GetChild(2));
+                        str = rightS;
+                        break;
+                }
+
+                switch(context.op.Type)
+                {
+                    case RubyParser.MUL:
+                        StringValues.Put(context,repeat(str, times));
+                        WhichValues.Put(context, "String");
+                        break;
+                    case RubyParser.PLUS:
+                        StringValues.Put(context,  leftS + rightS);
+                        WhichValues.Put(context, "String");
+                        break;
+                }
+            }
+            else if ( context.ChildCount == 1 )
+            { 
+                StringValues.Put(context, StringValues.Get(context.GetChild(0)));
+                WhichValues.Put(context, "String");
+            }
+            else if ( context.ChildCount == 3 && context.op == null )
+            { 
+                StringValues.Put(context, StringValues.Get(context.GetChild(1)));
+                WhichValues.Put(context, "String");
+            }
         }
 
         public override void EnterComparison_list(RubyParser.Comparison_listContext context)
@@ -891,7 +979,8 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitLiteral_t(RubyParser.Literal_tContext context)
         {
-            base.ExitLiteral_t(context);
+            StringValues.Put(context, StringValues.Get(context.GetChild(0)));
+            WhichValues.Put(context, WhichValues.Get(context.GetChild(0)));
         }
 
         public override void EnterFloat_t(RubyParser.Float_tContext context)
