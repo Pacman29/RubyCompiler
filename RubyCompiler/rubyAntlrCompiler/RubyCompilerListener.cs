@@ -25,6 +25,7 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         private int SemanticErrorsNum = 0;
         private int NumStr = 1;
+        private int NumRegInt = 0;
         private int NumReg = 0;
         private int NumLabel = 0;
         Stack<int> StackLoopLabels = new Stack<int>();
@@ -375,7 +376,31 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitAll_result(RubyParser.All_resultContext context)
         {
-            base.ExitAll_result(context);
+            var typeArg = WhichValues.Get(context.GetChild(0));
+            
+            switch(typeArg)
+            {
+                case "Integer":
+                    var resultInt = IntValues.Get(context.GetChild(0));
+                    IntValues.Put(context, resultInt);
+                    WhichValues.Put(context, typeArg);
+                    break;
+                case "Float":
+                    var resultFloat = FloatValues.Get(context.GetChild(0));
+                    FloatValues.Put(context, resultFloat);
+                    WhichValues.Put(context, typeArg);
+                    break;
+                case "String":
+                    var resultString = StringValues.Get(context.GetChild(0));
+                    StringValues.Put(context, "\"" + resultString + "\"");
+                    WhichValues.Put(context, typeArg);
+                    break;
+                case "Dynamic":
+                    var resultDynamic = StringValues.Get(context.GetChild(0));
+                    StringValues.Put(context, resultDynamic);
+                    WhichValues.Put(context, typeArg);
+                    break;
+            }
         }
 
         public override void EnterElsif_statement(RubyParser.Elsif_statementContext context)
@@ -573,17 +598,54 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterFor_statement(RubyParser.For_statementContext context)
         {
-            base.EnterFor_statement(context);
+            StackLoopLabels.Push(++NumLabel);
+            StackLoopLabels.Push(++NumLabel);
         }
 
         public override void ExitFor_statement(RubyParser.For_statementContext context)
         {
-            base.ExitFor_statement(context);
+            var temp4 = StackOutputStreams.Pop();
+            var temp3 = StackOutputStreams.Pop();
+            var temp2 = StackOutputStreams.Pop();
+            var temp1 = StackOutputStreams.Pop();
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var labelEnd = StackLoopLabels.Pop();
+            var labelBegin = StackLoopLabels.Pop();
+
+            if (context.ChildCount == 11) 
+            {
+                temp1.CopyTo(outStream);
+                var cond = StringValues.Get(context.GetChild(4));
+                ps.WriteLine("label_" + labelBegin + ":");
+                temp2.CopyTo(outStream);
+                ps.WriteLine("unless " + cond + " goto label_" + labelEnd);
+                temp4.CopyTo(outStream);
+                temp3.CopyTo(outStream);
+                ps.WriteLine("goto label_" + labelBegin);
+                ps.WriteLine("label_" + labelEnd + ":");
+            }
+            else if (context.ChildCount == 9) 
+            {
+                temp1.CopyTo(outStream);
+                var cond = StringValues.Get(context.GetChild(3));
+                ps.WriteLine("label_" + labelBegin + ":");
+                temp2.CopyTo(outStream);
+                ps.WriteLine("unless " + cond + " goto label_" + labelEnd);
+                temp4.CopyTo(outStream);
+                temp3.CopyTo(outStream);
+                ps.WriteLine("goto label_" + labelBegin);
+                ps.WriteLine("label_" + labelEnd + ":");
+            }
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterInit_expression(RubyParser.Init_expressionContext context)
         {
-            base.EnterInit_expression(context);
+            var temp1 = new MemoryStream();
+            StackOutputStreams.Push(temp1);
         }
 
         public override void ExitInit_expression(RubyParser.Init_expressionContext context)
@@ -613,17 +675,19 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterCond_expression(RubyParser.Cond_expressionContext context)
         {
-            base.EnterCond_expression(context);
+            var temp2 = new MemoryStream();
+            StackOutputStreams.Push(temp2);
         }
 
         public override void ExitCond_expression(RubyParser.Cond_expressionContext context)
         {
-            base.ExitCond_expression(context);
+            StringValues.Put(context, StringValues.Get(context.GetChild(0)));
         }
 
         public override void EnterLoop_expression(RubyParser.Loop_expressionContext context)
         {
-            base.EnterLoop_expression(context);
+            var temp3 = new MemoryStream();
+            StackOutputStreams.Push(temp3);
         }
 
         public override void ExitLoop_expression(RubyParser.Loop_expressionContext context)
@@ -643,7 +707,8 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterStatement_body(RubyParser.Statement_bodyContext context)
         {
-            base.EnterStatement_body(context);
+            var temp4 = new MemoryStream();
+            StackOutputStreams.Push(temp4);
         }
 
         public override void ExitStatement_body(RubyParser.Statement_bodyContext context)
@@ -1239,7 +1304,42 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitComparison_list(RubyParser.Comparison_listContext context)
         {
-            base.ExitComparison_list(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            if ( context.ChildCount == 3 && context.op != null ) 
+            {
+                var left = StringValues.Get(context.GetChild(0));
+                var right = StringValues.Get(context.GetChild(2));     
+
+                switch(context.op.Type) {
+                    case RubyParser.BIT_AND:
+                        ps.WriteLine("$I" + NumRegInt + " = " + left + " && " + right);
+                        break;
+                    case RubyParser.AND:
+                        ps.WriteLine("$I" + NumRegInt + " = " + left + " && " + right);
+                        break;
+                    case RubyParser.BIT_OR:
+                        ps.WriteLine("$I" + NumRegInt + " = " + left + " || " + right);
+                        break;
+                    case RubyParser.OR:
+                        ps.WriteLine("$I" + NumRegInt + " = " + left + " || " + right);
+                        break;
+                }
+
+                StringValues.Put(context, "$I" + NumRegInt);
+                NumRegInt++;
+            }
+            else if ( context.ChildCount == 3 && context.op == null )
+            {
+                StringValues.Put(context, StringValues.Get(context.GetChild(1)));
+            }
+            else if ( context.ChildCount == 1 ) 
+            {
+                StringValues.Put(context, StringValues.Get(context.GetChild(0)));
+            }
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterComparison(RubyParser.ComparisonContext context)
@@ -1249,7 +1349,39 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitComparison(RubyParser.ComparisonContext context)
         {
-            base.ExitComparison(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var left = StringValues.Get(context.GetChild(0));
+            var right = StringValues.Get(context.GetChild(2));
+
+            switch(context.op.Type) 
+            {
+                case RubyParser.LESS:
+                    ps.WriteLine("$I" + NumRegInt + " = islt " + left + ", " + right);
+                    break;
+                case RubyParser.GREATER:
+                    ps.WriteLine("$I" + NumRegInt + " = isgt " + left + ", " + right);
+                    break;
+                case RubyParser.LESS_EQUAL:
+                    ps.WriteLine("$I" + NumRegInt + " = isle " + left + ", " + right);
+                    break;
+                case RubyParser.GREATER_EQUAL:
+                    ps.WriteLine("$I" + NumRegInt + " = isge " + left + ", " + right);
+                    break;
+                case RubyParser.EQUAL:
+                    ps.WriteLine("$I" + NumRegInt + " = iseq " + left + ", " + right);
+                    break;
+                case RubyParser.NOT_EQUAL:
+                    var temp = "\n$I" + NumRegInt + " = not " + "$I" + NumRegInt;
+                    ps.WriteLine("$I" + NumRegInt + " = iseq " + left + ", " + right + temp);
+                    
+                    break;
+            }
+            StringValues.Put(context, "$I" + NumRegInt);
+            NumRegInt++;
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterComp_var(RubyParser.Comp_varContext context)
@@ -1259,7 +1391,41 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitComp_var(RubyParser.Comp_varContext context)
         {
-            base.ExitComp_var(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+
+            var typeArg = WhichValues.Get(context.GetChild(0));
+            var strOutput = "";
+            
+            switch(typeArg) 
+            {
+                case "Integer":
+                    var resultInt = IntValues.Get(context.GetChild(0));
+                    strOutput = "$P" + NumReg + " = " + resultInt;
+                    break;
+                case "Float":
+                    var resultFloat = FloatValues.Get(context.GetChild(0));
+                    strOutput = "$P" + NumReg + " = " + resultFloat;
+                    break;
+                case "String":
+                    var resultString = StringValues.Get(context.GetChild(0));
+                    strOutput = "$P" + NumReg + " = " + resultString;
+                    break;
+                case "Dynamic":
+                    var resultDynamic = StringValues.Get(context.GetChild(0));
+                    StringValues.Put(context, resultDynamic);
+                    WhichValues.Put(context, typeArg);
+                    StackOutputStreams.Push(outStream);
+                    return;
+            }
+
+            ps.WriteLine("$P" + NumReg + " = new \"Integer\"");
+            ps.WriteLine(strOutput);
+            StringValues.Put(context, "$P" + NumReg);
+            WhichValues.Put(context, "Dynamic");
+            NumReg++;
+
+            StackOutputStreams.Push(outStream);
         }
 
         public override void EnterLvalue(RubyParser.LvalueContext context)
