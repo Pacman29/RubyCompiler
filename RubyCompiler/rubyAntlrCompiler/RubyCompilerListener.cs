@@ -708,7 +708,21 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void EnterInitial_array_assignment(RubyParser.Initial_array_assignmentContext context)
         {
-            base.EnterInitial_array_assignment(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            var definitions = StackDefinitions.Pop();
+
+            var variable = context.var_id.GetText();
+
+            if (!IsDefined(definitions, variable)) {
+                ps.WriteLine("");
+                ps.WriteLine(".local pmc " + variable);
+                definitions.AddLast(variable);
+            }
+            ps.WriteLine(variable + " = new \"ResizablePMCArray\"");
+
+            StackOutputStreams.Push(outStream);
+            StackDefinitions.Push(definitions);
         }
 
         public override void ExitInitial_array_assignment(RubyParser.Initial_array_assignmentContext context)
@@ -723,7 +737,35 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitArray_assignment(RubyParser.Array_assignmentContext context)
         {
-            base.ExitArray_assignment(context);
+            var outStream = StackOutputStreams.Pop();
+            var ps = new StreamWriter(outStream);
+            var definitions = StackDefinitions.Pop();
+            var arrDef = StringValues.Get(context.GetChild(0));
+
+            var typeArg = WhichValues.Get(context.GetChild(2));
+
+            switch(typeArg)
+            {
+                case "Integer":
+                    var resultInt = IntValues.Get(context.GetChild(2));
+                    ps.WriteLine(arrDef + " = " + resultInt);
+                    break;
+                case "Float":
+                    var resultFloat = FloatValues.Get(context.GetChild(2));
+                    ps.WriteLine(arrDef + " = " + resultFloat);
+                    break;
+                case "String":
+                    var resultString = StringValues.Get(context.GetChild(2));
+                    ps.WriteLine(arrDef + " = " + resultString);
+                    break;
+                case "Dynamic":
+                    var resultDynamic = StringValues.Get(context.GetChild(2));
+                    ps.WriteLine(arrDef + " = " + resultDynamic);
+                    break;
+            }
+
+            StackOutputStreams.Push(outStream);
+            StackDefinitions.Push(definitions);
         }
 
         public override void EnterArray_definition(RubyParser.Array_definitionContext context)
@@ -753,7 +795,22 @@ namespace RubyCompiler.rubyAntlrCompiler
 
         public override void ExitArray_selector(RubyParser.Array_selectorContext context)
         {
-            base.ExitArray_selector(context);
+            var name = StringValues.Get(context.GetChild(0));
+            var typeArg = WhichValues.Get(context.GetChild(2));
+
+            switch(typeArg)
+            {
+                case "Integer":
+                    var selectorInt = IntValues.Get(context.GetChild(2));
+                    StringValues.Put(context, name + "[" + selectorInt + "]");
+                    break;
+                case "Dynamic":
+                    var selectorStr = StringValues.Get(context.GetChild(2));
+                    StringValues.Put(context, name + "[" + selectorStr + "]");
+                    break;
+            }
+
+            WhichValues.Put(context, "Dynamic");
         }
 
         public override void EnterDynamic_result(RubyParser.Dynamic_resultContext context)
