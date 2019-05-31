@@ -11,19 +11,28 @@ namespace RubyCompiler
         {
             try
             {
+                if (args.Length == 0)
+                {
+                    Console.WriteLine("input ruby file");
+                    return;
+                }
+
+                var path = Path.Combine(Environment.CurrentDirectory, args[0]);
+                if (!File.Exists(path))
+                {
+                    Console.WriteLine("file not found");
+                    return;
+                }
                 var compiler = new Compiler();
-                var path = Path.Combine(Environment.CurrentDirectory, @"samples/main.rb");
                 string source = File.ReadAllText( path, Encoding.UTF8);
                 compiler.Compile(Path.GetFileNameWithoutExtension(path), source);
-                /**foreach (var compilerToken in compiler.Tokens)
-                {
-                    Console.WriteLine(compilerToken);
-                }**/
+                Console.WriteLine($"create file: ./test_bytecode/{Path.GetFileNameWithoutExtension(path)}.pir");
             }
             catch (Exception e)
             {
                 Console.WriteLine(e);
             }
+            Console.ReadLine();
             
         }
     }
